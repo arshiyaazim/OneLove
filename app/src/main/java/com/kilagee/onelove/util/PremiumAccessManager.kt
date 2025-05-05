@@ -1,242 +1,164 @@
 package com.kilagee.onelove.util
 
-import com.kilagee.onelove.data.model.SubscriptionType
-import com.kilagee.onelove.domain.model.Resource
-import com.kilagee.onelove.domain.repository.SubscriptionRepository
+import android.util.Log
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Utility class for managing premium features access control
+ * Manager class for handling premium feature access
  */
 @Singleton
 class PremiumAccessManager @Inject constructor(
-    private val subscriptionRepository: SubscriptionRepository
+    private val firestore: FirebaseFirestore,
+    private val auth: FirebaseAuth
 ) {
-    /**
-     * Check if user has any active premium subscription
-     */
-    suspend fun hasActiveSubscription(): Boolean {
-        val hasSubscription = subscriptionRepository.hasActiveSubscription().first()
-        return hasSubscription is Resource.Success && hasSubscription.data
+    
+    companion object {
+        private const val TAG = "PremiumAccessManager"
+        private const val SUBSCRIPTIONS_COLLECTION = "subscriptions"
+        private const val SUBSCRIPTION_TIERS_COLLECTION = "subscription_tiers"
     }
     
     /**
-     * Check if user has active subscription of specific type or higher
+     * Check if the current user has access to a specific premium feature
      */
-    suspend fun hasSubscriptionOfTypeOrHigher(minimumType: SubscriptionType): Boolean {
-        val activeSubscription = subscriptionRepository.getCurrentActiveSubscription().first()
-        
-        if (activeSubscription !is Resource.Success || activeSubscription.data == null) {
-            return false
-        }
-        
-        val subscription = activeSubscription.data
-        
-        return when (minimumType) {
-            SubscriptionType.BASIC -> true // Everyone has at least BASIC
-            SubscriptionType.BOOST -> {
-                subscription.type == SubscriptionType.BOOST ||
-                subscription.type == SubscriptionType.UNLIMITED ||
-                subscription.type == SubscriptionType.PREMIUM
+    fun checkFeatureAccess(feature: PremiumFeature): Flow<Boolean> = flow {
+        try {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                emit(false)
+                return@flow
             }
-            SubscriptionType.UNLIMITED -> {
-                subscription.type == SubscriptionType.UNLIMITED ||
-                subscription.type == SubscriptionType.PREMIUM
-            }
-            SubscriptionType.PREMIUM -> {
-                subscription.type == SubscriptionType.PREMIUM
-            }
-        }
-    }
-    
-    /**
-     * Check if user can send unlimited offers
-     * Requires BOOST plan or higher
-     */
-    suspend fun canSendUnlimitedOffers(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.BOOST)
-    }
-    
-    /**
-     * Check if user can make video calls
-     * Requires UNLIMITED plan or higher
-     */
-    suspend fun canMakeVideoCalls(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.UNLIMITED)
-    }
-    
-    /**
-     * Check if user can make audio calls
-     * Requires UNLIMITED plan or higher
-     */
-    suspend fun canMakeAudioCalls(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.UNLIMITED)
-    }
-    
-    /**
-     * Check if user can see who visited their profile
-     * Requires UNLIMITED plan or higher
-     */
-    suspend fun canSeeProfileVisitors(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.UNLIMITED)
-    }
-    
-    /**
-     * Check if user can get profile boost
-     * Requires BOOST plan or higher
-     */
-    suspend fun canBoostProfile(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.BOOST)
-    }
-    
-    /**
-     * Check if user can see who liked them
-     * Requires BOOST plan or higher
-     */
-    suspend fun canSeeWhoLikedThem(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.BOOST)
-    }
-    
-    /**
-     * Check if user has priority matching
-     * Requires UNLIMITED plan or higher
-     */
-    suspend fun hasPriorityMatching(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.UNLIMITED)
-    }
-    
-    /**
-     * Check if user has premium badge
-     * Requires PREMIUM plan
-     */
-    suspend fun hasPremiumBadge(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.PREMIUM)
-    }
-    
-    /**
-     * Check if user has an ad-free experience
-     * Requires PREMIUM plan
-     */
-    suspend fun hasAdFreeExperience(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.PREMIUM)
-    }
-    
-    /**
-     * Get maximum daily offer limit based on subscription
-     */
-    suspend fun getDailyOfferLimit(): Int {
-        return when {
-            hasSubscriptionOfTypeOrHigher(SubscriptionType.BOOST) -> Int.MAX_VALUE // Unlimited
-            else -> 5 // Basic tier limit
-        }
-    }
-    
-    /**
-     * Get maximum daily like limit based on subscription
-     */
-    suspend fun getDailyLikeLimit(): Int {
-        return when {
-            hasSubscriptionOfTypeOrHigher(SubscriptionType.UNLIMITED) -> Int.MAX_VALUE // Unlimited
-            hasSubscriptionOfTypeOrHigher(SubscriptionType.BOOST) -> 100
-            else -> 50 // Basic tier limit
-        }
-    }
-    
-    /**
-     * Get maximum daily swipe limit based on subscription
-     */
-    suspend fun getDailySwipeLimit(): Int {
-        return when {
-            hasSubscriptionOfTypeOrHigher(SubscriptionType.UNLIMITED) -> Int.MAX_VALUE // Unlimited
-            hasSubscriptionOfTypeOrHigher(SubscriptionType.BOOST) -> 200
-            else -> 100 // Basic tier limit
-        }
-    }
-    
-    /**
-     * Check if user can use background verification
-     * Requires PREMIUM plan
-     */
-    suspend fun canUseBackgroundVerification(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.PREMIUM)
-    }
-    
-    /**
-     * Check if user can access exclusive events
-     * Requires PREMIUM plan
-     */
-    suspend fun canAccessExclusiveEvents(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.PREMIUM)
-    }
-    
-    /**
-     * Check if user has priority support
-     * Requires PREMIUM plan
-     */
-    suspend fun hasPrioritySupport(): Boolean {
-        return hasSubscriptionOfTypeOrHigher(SubscriptionType.PREMIUM)
-    }
-    
-    /**
-     * Check if specific feature is available for current subscription
-     */
-    suspend fun isFeatureAvailable(feature: PremiumFeature): Boolean {
-        return when (feature) {
-            PremiumFeature.UNLIMITED_OFFERS -> canSendUnlimitedOffers()
-            PremiumFeature.VIDEO_CALLS -> canMakeVideoCalls()
-            PremiumFeature.AUDIO_CALLS -> canMakeAudioCalls()
-            PremiumFeature.SEE_PROFILE_VISITORS -> canSeeProfileVisitors()
-            PremiumFeature.PROFILE_BOOST -> canBoostProfile()
-            PremiumFeature.SEE_WHO_LIKED -> canSeeWhoLikedThem()
-            PremiumFeature.PRIORITY_MATCHING -> hasPriorityMatching()
-            PremiumFeature.PREMIUM_BADGE -> hasPremiumBadge()
-            PremiumFeature.AD_FREE -> hasAdFreeExperience()
-            PremiumFeature.BACKGROUND_VERIFICATION -> canUseBackgroundVerification()
-            PremiumFeature.EXCLUSIVE_EVENTS -> canAccessExclusiveEvents()
-            PremiumFeature.PRIORITY_SUPPORT -> hasPrioritySupport()
-        }
-    }
-    
-    /**
-     * Get subscription type needed for a feature
-     */
-    fun getSubscriptionTypeForFeature(feature: PremiumFeature): SubscriptionType {
-        return when (feature) {
-            PremiumFeature.UNLIMITED_OFFERS, 
-            PremiumFeature.PROFILE_BOOST,
-            PremiumFeature.SEE_WHO_LIKED -> SubscriptionType.BOOST
             
-            PremiumFeature.VIDEO_CALLS,
-            PremiumFeature.AUDIO_CALLS,
-            PremiumFeature.SEE_PROFILE_VISITORS,
-            PremiumFeature.PRIORITY_MATCHING -> SubscriptionType.UNLIMITED
+            // Get current active subscription
+            val subscriptionSnapshot = firestore
+                .collection(SUBSCRIPTIONS_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("status", "active")
+                .get()
+                .await()
             
-            PremiumFeature.PREMIUM_BADGE,
-            PremiumFeature.AD_FREE,
-            PremiumFeature.BACKGROUND_VERIFICATION,
-            PremiumFeature.EXCLUSIVE_EVENTS,
-            PremiumFeature.PRIORITY_SUPPORT -> SubscriptionType.PREMIUM
+            if (subscriptionSnapshot.isEmpty) {
+                emit(false)
+                return@flow
+            }
+            
+            // Get the subscription document
+            val subscription = subscriptionSnapshot.documents.first()
+            val subscriptionTierId = subscription.getString("tierId") ?: ""
+            
+            // Get the tier details to check feature access
+            val tierSnapshot = firestore
+                .collection(SUBSCRIPTION_TIERS_COLLECTION)
+                .document(subscriptionTierId)
+                .get()
+                .await()
+            
+            if (!tierSnapshot.exists()) {
+                emit(false)
+                return@flow
+            }
+            
+            // Get features included in this tier
+            val features = tierSnapshot.get("features") as? List<String> ?: emptyList()
+            
+            // Check if the requested feature is included
+            val hasAccess = features.contains(feature.name)
+            emit(hasAccess)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking feature access: ${e.message}", e)
+            emit(false)
         }
     }
+    
+    /**
+     * Check if a user has any active premium subscription
+     */
+    fun hasAnySubscription(): Flow<Boolean> = flow {
+        try {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                emit(false)
+                return@flow
+            }
+            
+            // Check for any active subscription
+            val subscriptionSnapshot = firestore
+                .collection(SUBSCRIPTIONS_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("status", "active")
+                .get()
+                .await()
+            
+            emit(!subscriptionSnapshot.isEmpty)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking subscription status: ${e.message}", e)
+            emit(false)
+        }
+    }
+    
+    /**
+     * Get the name of the current subscription tier
+     */
+    fun getCurrentTierName(): Flow<String> = flow {
+        try {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                emit("Free")
+                return@flow
+            }
+            
+            // Get current active subscription
+            val subscriptionSnapshot = firestore
+                .collection(SUBSCRIPTIONS_COLLECTION)
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("status", "active")
+                .get()
+                .await()
+            
+            if (subscriptionSnapshot.isEmpty) {
+                emit("Free")
+                return@flow
+            }
+            
+            // Get the subscription document
+            val subscription = subscriptionSnapshot.documents.first()
+            val subscriptionTierId = subscription.getString("tierId") ?: ""
+            
+            // Get the tier details
+            val tierSnapshot = firestore
+                .collection(SUBSCRIPTION_TIERS_COLLECTION)
+                .document(subscriptionTierId)
+                .get()
+                .await()
+            
+            if (!tierSnapshot.exists()) {
+                emit("Free")
+                return@flow
+            }
+            
+            val tierName = tierSnapshot.getString("name") ?: "Free"
+            emit(tierName)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting subscription tier: ${e.message}", e)
+            emit("Free")
+        }
+    }
+    
+    /**
+     * Check if the current tier includes a specific feature
+     */
+    fun doesCurrentTierIncludeFeature(feature: PremiumFeature): Flow<Boolean> = checkFeatureAccess(feature)
 }
 
-/**
- * Enum defining premium features available in the app
- */
-enum class PremiumFeature {
-    UNLIMITED_OFFERS,
-    VIDEO_CALLS,
-    AUDIO_CALLS,
-    SEE_PROFILE_VISITORS,
-    PROFILE_BOOST,
-    SEE_WHO_LIKED,
-    PRIORITY_MATCHING,
-    PREMIUM_BADGE,
-    AD_FREE,
-    BACKGROUND_VERIFICATION,
-    EXCLUSIVE_EVENTS,
-    PRIORITY_SUPPORT
+// Extension function to make Firestore Task awaitable
+suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T {
+    return kotlinx.coroutines.tasks.await()
 }

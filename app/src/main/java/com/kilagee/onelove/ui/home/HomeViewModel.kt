@@ -2,261 +2,157 @@ package com.kilagee.onelove.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kilagee.onelove.data.model.Post
-import com.kilagee.onelove.data.model.User
-import com.kilagee.onelove.data.repository.ChatRepository
-import com.kilagee.onelove.data.repository.PostRepository
-import com.kilagee.onelove.data.repository.UserRepository
+import com.google.firebase.auth.FirebaseAuth
+import com.kilagee.onelove.domain.model.AIProfile
+import com.kilagee.onelove.domain.model.Match
+import com.kilagee.onelove.domain.model.UserProfile
+import com.kilagee.onelove.domain.repository.AIProfileRepository
+import com.kilagee.onelove.domain.repository.MatchRepository
+import com.kilagee.onelove.domain.repository.NotificationRepository
+import com.kilagee.onelove.domain.repository.OfferRepository
+import com.kilagee.onelove.domain.repository.UserRepository
+import com.kilagee.onelove.util.PremiumAccessManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * ViewModel for the home screen
+ */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val userRepository: UserRepository,
-    private val postRepository: PostRepository,
-    private val chatRepository: ChatRepository
+    private val matchRepository: MatchRepository,
+    private val aiProfileRepository: AIProfileRepository,
+    private val offerRepository: OfferRepository,
+    private val notificationRepository: NotificationRepository,
+    private val auth: FirebaseAuth,
+    val premiumAccessManager: PremiumAccessManager
 ) : ViewModel() {
     
-    // Current user info
-    private val _currentUser = MutableStateFlow<User?>(null)
-    val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
+    private val _uiState = MutableStateFlow(HomeUIState())
+    val uiState: StateFlow<HomeUIState> = _uiState.asStateFlow()
     
-    // UI states
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    private val _currentUser = MutableStateFlow<UserProfile?>(null)
+    val currentUser: StateFlow<UserProfile?> = _currentUser.asStateFlow()
     
-    private val _error = MutableSharedFlow<String>()
-    val error: SharedFlow<String> = _error.asSharedFlow()
+    val subscriptionTier = MutableStateFlow("Free")
     
-    // Global feed posts
-    private val _posts = MutableStateFlow<List<Post>>(emptyList())
-    val posts: StateFlow<List<Post>> = _posts.asStateFlow()
+    val hasSubscription: StateFlow<Boolean> = premiumAccessManager.hasAnySubscription()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            false
+        )
     
-    // User suggestions
-    private val _userSuggestions = MutableStateFlow<List<User>>(emptyList())
-    val userSuggestions: StateFlow<List<User>> = _userSuggestions.asStateFlow()
-    
-    // AI demo profiles (subset of suggestions)
-    private val _aiProfiles = MutableStateFlow<List<User>>(emptyList())
-    val aiProfiles: StateFlow<List<User>> = _aiProfiles.asStateFlow()
-    
-    // New post state
-    val postContent = MutableStateFlow("")
+    val unreadNotificationCount: StateFlow<Int> = notificationRepository.getUnreadNotificationCount(
+        auth.currentUser?.uid ?: ""
+    ).stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        0
+    )
     
     init {
+        loadSubscriptionTier()
+    }
+    
+    private fun loadSubscriptionTier() {
+        viewModelScope.launch {
+            premiumAccessManager.getCurrentTierName().collect { tier ->
+                subscriptionTier.value = tier
+            }
+        }
+    }
+    
+    /**
+     * Load all data for the home screen
+     */
+    fun loadData() {
+        _uiState.value = _uiState.value.copy(isLoading = true)
+        
         loadCurrentUser()
-        loadGlobalFeed()
-        loadUserSuggestions()
+        loadMatches()
+        loadAIProfiles()
+        loadOffers()
+        loadPoints()
     }
     
     private fun loadCurrentUser() {
+        val userId = auth.currentUser?.uid ?: return
+        
         viewModelScope.launch {
-            val user = userRepository.getCurrentUser() ?: return@launch
-            
-            try {
-                val userResult = userRepository.getUserById(user.id)
-                if (userResult.isSuccess) {
-                    _currentUser.value = userResult.getOrNull()
-                } else {
-                    _error.emit(userResult.exceptionOrNull()?.message ?: "Failed to load user profile")
-                }
-            } catch (e: Exception) {
-                _error.emit(e.message ?: "Failed to load user profile")
+            userRepository.getUserProfile(userId).collect { profile ->
+                _currentUser.value = profile
             }
         }
     }
     
-    fun loadGlobalFeed() {
+    private fun loadMatches() {
+        val userId = auth.currentUser?.uid ?: return
+        
         viewModelScope.launch {
-            _isLoading.value = true
-            
-            try {
-                postRepository.getGlobalFeed().collectLatest { result ->
-                    _isLoading.value = false
-                    
-                    if (result.isSuccess) {
-                        _posts.value = result.getOrNull() ?: emptyList()
-                    } else {
-                        _error.emit(result.exceptionOrNull()?.message ?: "Failed to load feed")
-                    }
-                }
-            } catch (e: Exception) {
-                _isLoading.value = false
-                _error.emit(e.message ?: "Failed to load feed")
-            }
-        }
-    }
-    
-    private fun loadUserSuggestions() {
-        viewModelScope.launch {
-            _isLoading.value = true
-            
-            val currentUserId = userRepository.getCurrentUser()?.id ?: return@launch
-            
-            try {
-                userRepository.getUserSuggestions(
-                    currentUserId = currentUserId,
-                    limit = 20
-                ).collectLatest { result ->
-                    _isLoading.value = false
-                    
-                    if (result.isSuccess) {
-                        val users = result.getOrNull() ?: emptyList()
-                        _userSuggestions.value = users
-                        
-                        // Generate a subset of AI profiles (for demonstration)
-                        val aiUsers = users.take(5).mapIndexed { index, user ->
-                            user.copy(
-                                id = "ai_${index + 1}",
-                                username = "AI_${user.username}",
-                                isAI = true
-                            )
-                        }
-                        _aiProfiles.value = aiUsers
-                    } else {
-                        _error.emit(result.exceptionOrNull()?.message ?: "Failed to load suggestions")
-                    }
-                }
-            } catch (e: Exception) {
-                _isLoading.value = false
-                _error.emit(e.message ?: "Failed to load suggestions")
-            }
-        }
-    }
-    
-    fun createPost() {
-        viewModelScope.launch {
-            if (postContent.value.isBlank()) {
-                _error.emit("Post content cannot be empty")
-                return@launch
-            }
-            
-            _isLoading.value = true
-            
-            val currentUserId = userRepository.getCurrentUser()?.id ?: run {
-                _error.emit("User not logged in")
-                _isLoading.value = false
-                return@launch
-            }
-            
-            try {
-                val result = postRepository.createPost(
-                    userId = currentUserId,
-                    content = postContent.value
+            matchRepository.getRecentMatches(userId).collect { matches ->
+                _uiState.value = _uiState.value.copy(
+                    matches = matches,
+                    isLoading = false
                 )
-                
-                _isLoading.value = false
-                
-                if (result.isSuccess) {
-                    // Clear post content and refresh feed
-                    postContent.value = ""
-                    loadGlobalFeed()
-                } else {
-                    _error.emit(result.exceptionOrNull()?.message ?: "Failed to create post")
-                }
-            } catch (e: Exception) {
-                _isLoading.value = false
-                _error.emit(e.message ?: "Failed to create post")
             }
         }
     }
     
-    fun likePost(postId: String) {
+    private fun loadAIProfiles() {
         viewModelScope.launch {
-            val currentUserId = userRepository.getCurrentUser()?.id ?: run {
-                _error.emit("User not logged in")
-                return@launch
-            }
-            
-            try {
-                val result = postRepository.likePost(postId, currentUserId)
-                
-                if (result.isSuccess) {
-                    // Refresh feed to show the like
-                    loadGlobalFeed()
-                } else {
-                    _error.emit(result.exceptionOrNull()?.message ?: "Failed to like post")
-                }
-            } catch (e: Exception) {
-                _error.emit(e.message ?: "Failed to like post")
-            }
-        }
-    }
-    
-    fun commentOnPost(postId: String, comment: String) {
-        viewModelScope.launch {
-            if (comment.isBlank()) {
-                _error.emit("Comment cannot be empty")
-                return@launch
-            }
-            
-            val currentUserId = userRepository.getCurrentUser()?.id ?: run {
-                _error.emit("User not logged in")
-                return@launch
-            }
-            
-            try {
-                val result = postRepository.addComment(postId, currentUserId, comment)
-                
-                if (result.isSuccess) {
-                    // Refresh feed to show the new comment
-                    loadGlobalFeed()
-                } else {
-                    _error.emit(result.exceptionOrNull()?.message ?: "Failed to add comment")
-                }
-            } catch (e: Exception) {
-                _error.emit(e.message ?: "Failed to add comment")
-            }
-        }
-    }
-    
-    fun sendOfferToUser(userId: String) {
-        viewModelScope.launch {
-            val currentUserId = userRepository.getCurrentUser()?.id ?: run {
-                _error.emit("User not logged in")
-                return@launch
-            }
-            
-            // First create a chat between the two users
-            try {
-                val chatResult = chatRepository.createChat(
-                    participants = listOf(currentUserId, userId)
+            aiProfileRepository.getFeaturedAIProfiles().collect { profiles ->
+                _uiState.value = _uiState.value.copy(
+                    aiProfiles = profiles,
+                    isLoading = false
                 )
-                
-                if (chatResult.isSuccess) {
-                    val chatId = chatResult.getOrNull() ?: ""
-                    // Send an initial message as an offer
-                    val messageResult = chatRepository.sendMessage(
-                        chatId = chatId,
-                        senderId = currentUserId,
-                        receiverId = userId,
-                        content = "Hi! I'd like to connect with you."
-                    )
-                    
-                    if (messageResult.isSuccess) {
-                        // Success!
-                    } else {
-                        _error.emit(messageResult.exceptionOrNull()?.message ?: "Failed to send offer")
-                    }
-                } else {
-                    _error.emit(chatResult.exceptionOrNull()?.message ?: "Failed to create chat")
-                }
-            } catch (e: Exception) {
-                _error.emit(e.message ?: "Failed to send offer")
             }
         }
     }
     
-    fun startChatWithAI(aiId: String): String {
-        // Create a chat ID for the AI
-        return "ai_chat_$aiId"
+    private fun loadOffers() {
+        val userId = auth.currentUser?.uid ?: return
+        
+        viewModelScope.launch {
+            offerRepository.getSentOfferCount(userId).collect { count ->
+                _uiState.value = _uiState.value.copy(
+                    sentOffers = count,
+                    isLoading = false
+                )
+            }
+        }
+    }
+    
+    private fun loadPoints() {
+        val userId = auth.currentUser?.uid ?: return
+        
+        viewModelScope.launch {
+            userRepository.getUserPoints(userId).collect { points ->
+                _uiState.value = _uiState.value.copy(
+                    points = points,
+                    isLoading = false
+                )
+            }
+        }
     }
 }
+
+/**
+ * UI state for the home screen
+ */
+data class HomeUIState(
+    val matches: List<Match> = emptyList(),
+    val aiProfiles: List<AIProfile> = emptyList(),
+    val sentOffers: Int = 0,
+    val points: Int = 0,
+    val isLoading: Boolean = false,
+    val error: String? = null
+)

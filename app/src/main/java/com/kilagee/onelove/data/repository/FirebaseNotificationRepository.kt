@@ -1,452 +1,396 @@
 package com.kilagee.onelove.data.repository
 
-import android.content.SharedPreferences
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.messaging.FirebaseMessaging
+import com.google.firebase.firestore.Query
 import com.kilagee.onelove.data.database.dao.NotificationDao
 import com.kilagee.onelove.data.model.Notification
 import com.kilagee.onelove.data.model.NotificationActionType
 import com.kilagee.onelove.data.model.NotificationType
 import com.kilagee.onelove.domain.model.Resource
 import com.kilagee.onelove.domain.repository.NotificationRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.tasks.await
 import java.util.Date
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class FirebaseNotificationRepository @Inject constructor(
-    private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
-    private val messaging: FirebaseMessaging,
-    private val notificationDao: NotificationDao,
-    private val sharedPreferences: SharedPreferences
+    private val notificationDao: NotificationDao
 ) : NotificationRepository {
     
     private val notificationsCollection = firestore.collection("notifications")
-    private val userTokensCollection = firestore.collection("user_tokens")
-    private val notificationsEnabledKey = "notifications_enabled"
     
-    override fun createNotification(
-        title: String,
-        message: String,
-        type: NotificationType,
-        relatedId: String?,
-        imageUrl: String?,
-        actionType: NotificationActionType,
-        actionData: String?
-    ): Flow<Resource<Notification>> = flow {
-        emit(Resource.Loading)
-        
-        try {
-            val currentUser = auth.currentUser
-            
-            if (currentUser == null) {
-                emit(Resource.error("User not authenticated"))
-                return@flow
-            }
-            
-            // Create notification object
-            val notificationId = UUID.randomUUID().toString()
-            val notification = Notification(
-                id = notificationId,
-                userId = currentUser.uid,
-                title = title,
-                message = message,
-                type = type,
-                imageUrl = imageUrl,
-                relatedId = relatedId,
-                actionType = actionType,
-                actionData = actionData,
-                createdAt = Date()
-            )
-            
-            // Save to Firestore
-            notificationsCollection.document(notificationId).set(notification).await()
-            
-            // Save to Room
-            notificationDao.insertNotification(notification)
-            
-            // Use Firebase Cloud Messaging to send push notification
-            val recipientTokenSnapshot = userTokensCollection.document(currentUser.uid).get().await()
-            val recipientToken = recipientTokenSnapshot.getString("token")
-            
-            if (recipientToken != null) {
-                // Send FCM message using Firebase Cloud Functions
-                // This will be handled by a Cloud Function that sends the push notification
-                val messageData = hashMapOf(
-                    "token" to recipientToken,
-                    "title" to title,
-                    "body" to message,
-                    "notificationId" to notificationId,
-                    "type" to type.name,
-                    "actionType" to actionType.name,
-                    "actionData" to (actionData ?: ""),
-                    "imageUrl" to (imageUrl ?: "")
-                )
-                
-                // Store message data in a collection that triggers Cloud Functions
-                firestore.collection("fcm_messages").document(UUID.randomUUID().toString())
-                    .set(messageData).await()
-            }
-            
-            emit(Resource.success(notification))
-        } catch (e: Exception) {
-            emit(Resource.error("Failed to create notification: ${e.message}"))
-        }
-    }
-    
-    override fun getNotifications(): Flow<Resource<List<Notification>>> = flow {
-        emit(Resource.Loading)
-        
-        try {
-            val currentUser = auth.currentUser
-            
-            if (currentUser == null) {
-                emit(Resource.error("User not authenticated"))
-                return@flow
-            }
-            
-            // Get notifications from Firestore
-            val notificationsSnapshot = notificationsCollection
-                .whereEqualTo("userId", currentUser.uid)
-                .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                .get()
-                .await()
-            
-            val notifications = notificationsSnapshot.documents.mapNotNull {
-                it.toObject(Notification::class.java)
-            }
-            
-            // Save to Room
-            notificationDao.insertNotifications(notifications)
-            
-            // Return notifications
-            emit(Resource.success(notifications))
-        } catch (e: Exception) {
-            // Try to get from local database if network fails
-            try {
-                val localNotifications = notificationDao.getAllNotifications()
-                
-                if (localNotifications.isNotEmpty()) {
-                    emit(Resource.success(localNotifications))
-                } else {
-                    emit(Resource.error("Failed to get notifications: ${e.message}"))
+    override fun getUserNotifications(userId: String): Flow<List<Notification>> = callbackFlow {
+        val listenerRegistration = notificationsCollection
+            .whereEqualTo("userId", userId)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    // Send empty list on error
+                    trySend(emptyList())
+                    return@addSnapshotListener
                 }
-            } catch (ex: Exception) {
-                emit(Resource.error("Failed to get notifications: ${e.message}"))
-            }
-        }
-    }
-    
-    override fun getNotificationsByType(type: NotificationType): Flow<Resource<List<Notification>>> = flow {
-        emit(Resource.Loading)
-        
-        try {
-            val currentUser = auth.currentUser
-            
-            if (currentUser == null) {
-                emit(Resource.error("User not authenticated"))
-                return@flow
-            }
-            
-            // Get notifications from Firestore
-            val notificationsSnapshot = notificationsCollection
-                .whereEqualTo("userId", currentUser.uid)
-                .whereEqualTo("type", type.name)
-                .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                .get()
-                .await()
-            
-            val notifications = notificationsSnapshot.documents.mapNotNull {
-                it.toObject(Notification::class.java)
-            }
-            
-            emit(Resource.success(notifications))
-        } catch (e: Exception) {
-            // Try to get from local database if network fails
-            try {
-                val localNotifications = notificationDao.getNotificationsByType(type)
                 
-                if (localNotifications.isNotEmpty()) {
-                    emit(Resource.success(localNotifications))
+                if (snapshot != null) {
+                    val notifications = snapshot.documents.mapNotNull { doc ->
+                        try {
+                            val id = doc.id
+                            val data = doc.data ?: return@mapNotNull null
+                            
+                            val userId = data["userId"] as? String ?: return@mapNotNull null
+                            val title = data["title"] as? String ?: return@mapNotNull null
+                            val body = data["body"] as? String ?: return@mapNotNull null
+                            val timestamp = data["timestamp"] as? Date ?: Date()
+                            val read = data["read"] as? Boolean ?: false
+                            val typeStr = data["type"] as? String ?: return@mapNotNull null
+                            
+                            @Suppress("UNCHECKED_CAST")
+                            val notificationData = data["data"] as? Map<String, String> ?: emptyMap()
+                            
+                            val actionTypeStr = data["actionType"] as? String
+                            val actionData = data["actionData"] as? String
+                            
+                            val type = try {
+                                NotificationType.valueOf(typeStr)
+                            } catch (e: Exception) {
+                                NotificationType.SYSTEM
+                            }
+                            
+                            val actionType = if (actionTypeStr != null) {
+                                try {
+                                    NotificationActionType.valueOf(actionTypeStr)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            } else null
+                            
+                            Notification(
+                                id = id,
+                                userId = userId,
+                                title = title,
+                                body = body,
+                                timestamp = timestamp,
+                                read = read,
+                                type = type,
+                                data = notificationData,
+                                actionType = actionType,
+                                actionData = actionData
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    
+                    // Update local database
+                    try {
+                        notificationDao.insertNotifications(notifications)
+                    } catch (e: Exception) {
+                        // Ignore database errors
+                    }
+                    
+                    trySend(notifications)
                 } else {
-                    emit(Resource.error("Failed to get notifications by type: ${e.message}"))
+                    trySend(emptyList())
                 }
-            } catch (ex: Exception) {
-                emit(Resource.error("Failed to get notifications by type: ${e.message}"))
             }
-        }
-    }
+        
+        awaitClose { listenerRegistration.remove() }
+    }.flowOn(Dispatchers.IO)
     
-    override fun getUnreadNotificationsCount(): Flow<Resource<Int>> = flow {
+    override fun getUnreadNotifications(userId: String): Flow<List<Notification>> = callbackFlow {
+        val listenerRegistration = notificationsCollection
+            .whereEqualTo("userId", userId)
+            .whereEqualTo("read", false)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    // Send empty list on error
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                
+                if (snapshot != null) {
+                    val notifications = snapshot.documents.mapNotNull { doc ->
+                        try {
+                            val id = doc.id
+                            val data = doc.data ?: return@mapNotNull null
+                            
+                            val userId = data["userId"] as? String ?: return@mapNotNull null
+                            val title = data["title"] as? String ?: return@mapNotNull null
+                            val body = data["body"] as? String ?: return@mapNotNull null
+                            val timestamp = data["timestamp"] as? Date ?: Date()
+                            val read = data["read"] as? Boolean ?: false
+                            val typeStr = data["type"] as? String ?: return@mapNotNull null
+                            
+                            @Suppress("UNCHECKED_CAST")
+                            val notificationData = data["data"] as? Map<String, String> ?: emptyMap()
+                            
+                            val actionTypeStr = data["actionType"] as? String
+                            val actionData = data["actionData"] as? String
+                            
+                            val type = try {
+                                NotificationType.valueOf(typeStr)
+                            } catch (e: Exception) {
+                                NotificationType.SYSTEM
+                            }
+                            
+                            val actionType = if (actionTypeStr != null) {
+                                try {
+                                    NotificationActionType.valueOf(actionTypeStr)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            } else null
+                            
+                            Notification(
+                                id = id,
+                                userId = userId,
+                                title = title,
+                                body = body,
+                                timestamp = timestamp,
+                                read = read,
+                                type = type,
+                                data = notificationData,
+                                actionType = actionType,
+                                actionData = actionData
+                            )
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                    
+                    trySend(notifications)
+                } else {
+                    trySend(emptyList())
+                }
+            }
+        
+        awaitClose { listenerRegistration.remove() }
+    }.flowOn(Dispatchers.IO)
+    
+    override fun getNotificationById(notificationId: String): Flow<Resource<Notification>> = flow {
         emit(Resource.Loading)
         
         try {
-            val currentUser = auth.currentUser
-            
-            if (currentUser == null) {
-                emit(Resource.error("User not authenticated"))
-                return@flow
+            // Try to get from local database first
+            val localNotification = notificationDao.getNotificationById(notificationId)
+            if (localNotification != null) {
+                emit(Resource.success(localNotification))
             }
             
-            // Get count from Firestore
-            val count = notificationsCollection
-                .whereEqualTo("userId", currentUser.uid)
-                .whereEqualTo("isRead", false)
-                .get()
-                .await()
-                .size()
-            
-            emit(Resource.success(count))
-        } catch (e: Exception) {
-            // Try to get from local database if network fails
-            try {
-                val localCount = notificationDao.getUnreadNotificationsCount()
-                emit(Resource.success(localCount))
-            } catch (ex: Exception) {
-                emit(Resource.error("Failed to get unread notifications count: ${e.message}"))
-            }
-        }
-    }
-    
-    override fun markNotificationAsRead(notificationId: String): Flow<Resource<Notification>> = flow {
-        emit(Resource.Loading)
-        
-        try {
-            val currentUser = auth.currentUser
-            
-            if (currentUser == null) {
-                emit(Resource.error("User not authenticated"))
-                return@flow
-            }
-            
-            // Update notification in Firestore
-            val now = Date()
-            notificationsCollection.document(notificationId)
-                .update(
-                    mapOf(
-                        "isRead" to true,
-                        "readAt" to now
-                    )
-                )
-                .await()
-            
-            // Update notification in Room
-            notificationDao.markNotificationAsRead(notificationId, now)
-            
-            // Get updated notification
-            val updatedNotification = notificationsCollection.document(notificationId)
-                .get()
-                .await()
-                .toObject(Notification::class.java)
-            
-            if (updatedNotification != null) {
-                emit(Resource.success(updatedNotification))
-            } else {
+            // Get from Firestore
+            val documentSnapshot = notificationsCollection.document(notificationId).get().await()
+            if (documentSnapshot.exists()) {
+                val data = documentSnapshot.data
+                if (data != null) {
+                    try {
+                        val userId = data["userId"] as? String ?: throw Exception("Invalid userId")
+                        val title = data["title"] as? String ?: throw Exception("Invalid title")
+                        val body = data["body"] as? String ?: throw Exception("Invalid body")
+                        val timestamp = data["timestamp"] as? Date ?: Date()
+                        val read = data["read"] as? Boolean ?: false
+                        val typeStr = data["type"] as? String ?: throw Exception("Invalid type")
+                        
+                        @Suppress("UNCHECKED_CAST")
+                        val notificationData = data["data"] as? Map<String, String> ?: emptyMap()
+                        
+                        val actionTypeStr = data["actionType"] as? String
+                        val actionData = data["actionData"] as? String
+                        
+                        val type = try {
+                            NotificationType.valueOf(typeStr)
+                        } catch (e: Exception) {
+                            NotificationType.SYSTEM
+                        }
+                        
+                        val actionType = if (actionTypeStr != null) {
+                            try {
+                                NotificationActionType.valueOf(actionTypeStr)
+                            } catch (e: Exception) {
+                                null
+                            }
+                        } else null
+                        
+                        val notification = Notification(
+                            id = notificationId,
+                            userId = userId,
+                            title = title,
+                            body = body,
+                            timestamp = timestamp,
+                            read = read,
+                            type = type,
+                            data = notificationData,
+                            actionType = actionType,
+                            actionData = actionData
+                        )
+                        
+                        // Update local database
+                        notificationDao.insertNotification(notification)
+                        
+                        emit(Resource.success(notification))
+                    } catch (e: Exception) {
+                        emit(Resource.error("Invalid notification data: ${e.message}"))
+                    }
+                } else {
+                    emit(Resource.error("Invalid notification data"))
+                }
+            } else if (localNotification == null) {
                 emit(Resource.error("Notification not found"))
             }
         } catch (e: Exception) {
-            emit(Resource.error("Failed to mark notification as read: ${e.message}"))
+            emit(Resource.error("Failed to get notification: ${e.message}"))
         }
-    }
+    }.flowOn(Dispatchers.IO)
     
-    override fun markAllNotificationsAsRead(): Flow<Resource<Unit>> = flow {
+    override fun markNotificationAsRead(notificationId: String): Flow<Resource<Unit>> = flow {
         emit(Resource.Loading)
         
         try {
-            val currentUser = auth.currentUser
+            // Update in Firestore
+            notificationsCollection.document(notificationId)
+                .update("read", true)
+                .await()
             
-            if (currentUser == null) {
-                emit(Resource.error("User not authenticated"))
-                return@flow
-            }
+            // Update in local database
+            notificationDao.markNotificationAsRead(notificationId)
             
+            emit(Resource.success(Unit))
+        } catch (e: Exception) {
+            emit(Resource.error("Failed to mark notification as read: ${e.message}"))
+        }
+    }.flowOn(Dispatchers.IO)
+    
+    override fun markAllNotificationsAsRead(userId: String): Flow<Resource<Unit>> = flow {
+        emit(Resource.Loading)
+        
+        try {
             // Get all unread notifications
-            val unreadNotificationsSnapshot = notificationsCollection
-                .whereEqualTo("userId", currentUser.uid)
-                .whereEqualTo("isRead", false)
+            val query = notificationsCollection
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("read", false)
                 .get()
                 .await()
             
             // Update each notification
-            val now = Date()
             val batch = firestore.batch()
-            
-            unreadNotificationsSnapshot.documents.forEach { doc ->
-                batch.update(
-                    doc.reference,
-                    mapOf(
-                        "isRead" to true,
-                        "readAt" to now
-                    )
-                )
+            for (document in query.documents) {
+                batch.update(document.reference, "read", true)
             }
             
+            // Commit the batch
             batch.commit().await()
             
-            // Update notifications in Room
-            notificationDao.markAllNotificationsAsRead(now)
+            // Update in local database
+            notificationDao.markAllNotificationsAsRead(userId)
             
             emit(Resource.success(Unit))
         } catch (e: Exception) {
             emit(Resource.error("Failed to mark all notifications as read: ${e.message}"))
         }
-    }
+    }.flowOn(Dispatchers.IO)
+    
+    override fun createNotification(notification: Notification): Flow<Resource<Notification>> = flow {
+        emit(Resource.Loading)
+        
+        try {
+            val notificationData = hashMapOf(
+                "userId" to notification.userId,
+                "title" to notification.title,
+                "body" to notification.body,
+                "timestamp" to notification.timestamp,
+                "read" to notification.read,
+                "type" to notification.type.name,
+                "data" to notification.data,
+                "actionType" to (notification.actionType?.name),
+                "actionData" to notification.actionData
+            )
+            
+            // Save to Firestore
+            val documentReference = if (notification.id.isNotEmpty()) {
+                notificationsCollection.document(notification.id)
+            } else {
+                notificationsCollection.document()
+            }
+            
+            documentReference.set(notificationData).await()
+            
+            val savedNotification = notification.copy(id = documentReference.id)
+            
+            // Save to local database
+            notificationDao.insertNotification(savedNotification)
+            
+            emit(Resource.success(savedNotification))
+        } catch (e: Exception) {
+            emit(Resource.error("Failed to create notification: ${e.message}"))
+        }
+    }.flowOn(Dispatchers.IO)
     
     override fun deleteNotification(notificationId: String): Flow<Resource<Unit>> = flow {
         emit(Resource.Loading)
         
         try {
-            val currentUser = auth.currentUser
+            // Delete from Firestore
+            notificationsCollection.document(notificationId)
+                .delete()
+                .await()
             
-            if (currentUser == null) {
-                emit(Resource.error("User not authenticated"))
-                return@flow
-            }
-            
-            // Delete notification from Firestore
-            notificationsCollection.document(notificationId).delete().await()
-            
-            // Delete notification from Room
+            // Delete from local database
             notificationDao.deleteNotification(notificationId)
             
             emit(Resource.success(Unit))
         } catch (e: Exception) {
             emit(Resource.error("Failed to delete notification: ${e.message}"))
         }
-    }
+    }.flowOn(Dispatchers.IO)
     
-    override fun deleteAllNotifications(): Flow<Resource<Unit>> = flow {
+    override fun deleteAllNotifications(userId: String): Flow<Resource<Unit>> = flow {
         emit(Resource.Loading)
         
         try {
-            val currentUser = auth.currentUser
-            
-            if (currentUser == null) {
-                emit(Resource.error("User not authenticated"))
-                return@flow
-            }
-            
             // Get all notifications for the user
-            val notificationsSnapshot = notificationsCollection
-                .whereEqualTo("userId", currentUser.uid)
+            val query = notificationsCollection
+                .whereEqualTo("userId", userId)
                 .get()
                 .await()
             
             // Delete each notification
             val batch = firestore.batch()
-            
-            notificationsSnapshot.documents.forEach { doc ->
-                batch.delete(doc.reference)
+            for (document in query.documents) {
+                batch.delete(document.reference)
             }
             
+            // Commit the batch
             batch.commit().await()
             
-            // Delete all notifications from Room
-            notificationDao.deleteAllNotifications()
+            // Delete from local database
+            notificationDao.deleteAllNotifications(userId)
             
             emit(Resource.success(Unit))
         } catch (e: Exception) {
             emit(Resource.error("Failed to delete all notifications: ${e.message}"))
         }
-    }
+    }.flowOn(Dispatchers.IO)
     
-    override fun deleteNotificationsByType(type: NotificationType): Flow<Resource<Unit>> = flow {
-        emit(Resource.Loading)
+    override fun getUnreadNotificationCount(userId: String): Flow<Int> = callbackFlow {
+        val listenerRegistration = notificationsCollection
+            .whereEqualTo("userId", userId)
+            .whereEqualTo("read", false)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) {
+                    trySend(0)
+                    return@addSnapshotListener
+                }
+                
+                trySend(snapshot.size())
+            }
         
-        try {
-            val currentUser = auth.currentUser
-            
-            if (currentUser == null) {
-                emit(Resource.error("User not authenticated"))
-                return@flow
-            }
-            
-            // Get all notifications of the specified type
-            val notificationsSnapshot = notificationsCollection
-                .whereEqualTo("userId", currentUser.uid)
-                .whereEqualTo("type", type.name)
-                .get()
-                .await()
-            
-            // Delete each notification
-            val batch = firestore.batch()
-            
-            notificationsSnapshot.documents.forEach { doc ->
-                batch.delete(doc.reference)
-            }
-            
-            batch.commit().await()
-            
-            // Delete notifications from Room
-            notificationDao.deleteNotificationsByType(type)
-            
-            emit(Resource.success(Unit))
-        } catch (e: Exception) {
-            emit(Resource.error("Failed to delete notifications by type: ${e.message}"))
-        }
-    }
-    
-    override fun updateFcmToken(token: String): Flow<Resource<Unit>> = flow {
-        emit(Resource.Loading)
-        
-        try {
-            val currentUser = auth.currentUser
-            
-            if (currentUser == null) {
-                emit(Resource.error("User not authenticated"))
-                return@flow
-            }
-            
-            // Update token in Firestore
-            userTokensCollection.document(currentUser.uid)
-                .set(
-                    mapOf(
-                        "token" to token,
-                        "userId" to currentUser.uid,
-                        "updatedAt" to Date()
-                    )
-                )
-                .await()
-            
-            emit(Resource.success(Unit))
-        } catch (e: Exception) {
-            emit(Resource.error("Failed to update FCM token: ${e.message}"))
-        }
-    }
-    
-    override fun setNotificationsEnabled(enabled: Boolean): Flow<Resource<Unit>> = flow {
-        try {
-            // Store notification preference in SharedPreferences
-            sharedPreferences.edit()
-                .putBoolean(notificationsEnabledKey, enabled)
-                .apply()
-            
-            // Update Firebase Messaging subscription
-            if (enabled) {
-                messaging.subscribeToTopic("user_${auth.currentUser?.uid}").await()
-            } else {
-                messaging.unsubscribeFromTopic("user_${auth.currentUser?.uid}").await()
-            }
-            
-            emit(Resource.success(Unit))
-        } catch (e: Exception) {
-            emit(Resource.error("Failed to update notification settings: ${e.message}"))
-        }
-    }
-    
-    override fun areNotificationsEnabled(): Flow<Resource<Boolean>> = flow {
-        try {
-            // Get notification preference from SharedPreferences
-            val enabled = sharedPreferences.getBoolean(notificationsEnabledKey, true)
-            emit(Resource.success(enabled))
-        } catch (e: Exception) {
-            emit(Resource.error("Failed to get notification settings: ${e.message}"))
-        }
-    }
+        awaitClose { listenerRegistration.remove() }
+    }.flowOn(Dispatchers.IO)
 }

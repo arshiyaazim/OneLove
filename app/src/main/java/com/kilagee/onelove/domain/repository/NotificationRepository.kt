@@ -1,53 +1,43 @@
 package com.kilagee.onelove.domain.repository
 
 import com.kilagee.onelove.data.model.Notification
-import com.kilagee.onelove.data.model.NotificationActionType
-import com.kilagee.onelove.data.model.NotificationType
 import com.kilagee.onelove.domain.model.Resource
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository interface for notification-related operations
+ * Repository interface for notification operations
  */
 interface NotificationRepository {
     
     /**
-     * Create a new notification
+     * Get all notifications for a user
      */
-    fun createNotification(
-        title: String,
-        message: String,
-        type: NotificationType,
-        relatedId: String? = null,
-        imageUrl: String? = null,
-        actionType: NotificationActionType = NotificationActionType.NONE,
-        actionData: String? = null
-    ): Flow<Resource<Notification>>
+    fun getUserNotifications(userId: String): Flow<List<Notification>>
     
     /**
-     * Get all notifications for current user
+     * Get unread notifications for a user
      */
-    fun getNotifications(): Flow<Resource<List<Notification>>>
+    fun getUnreadNotifications(userId: String): Flow<List<Notification>>
     
     /**
-     * Get notifications by type for current user
+     * Get notification by ID
      */
-    fun getNotificationsByType(type: NotificationType): Flow<Resource<List<Notification>>>
-    
-    /**
-     * Get unread notifications count
-     */
-    fun getUnreadNotificationsCount(): Flow<Resource<Int>>
+    fun getNotificationById(notificationId: String): Flow<Resource<Notification>>
     
     /**
      * Mark a notification as read
      */
-    fun markNotificationAsRead(notificationId: String): Flow<Resource<Notification>>
+    fun markNotificationAsRead(notificationId: String): Flow<Resource<Unit>>
     
     /**
-     * Mark all notifications as read
+     * Mark all notifications as read for a user
      */
-    fun markAllNotificationsAsRead(): Flow<Resource<Unit>>
+    fun markAllNotificationsAsRead(userId: String): Flow<Resource<Unit>>
+    
+    /**
+     * Create a new notification
+     */
+    fun createNotification(notification: Notification): Flow<Resource<Notification>>
     
     /**
      * Delete a notification
@@ -55,27 +45,12 @@ interface NotificationRepository {
     fun deleteNotification(notificationId: String): Flow<Resource<Unit>>
     
     /**
-     * Delete all notifications
+     * Delete all notifications for a user
      */
-    fun deleteAllNotifications(): Flow<Resource<Unit>>
+    fun deleteAllNotifications(userId: String): Flow<Resource<Unit>>
     
     /**
-     * Delete notifications by type
+     * Get unread notification count for a user
      */
-    fun deleteNotificationsByType(type: NotificationType): Flow<Resource<Unit>>
-    
-    /**
-     * Update FCM token
-     */
-    fun updateFcmToken(token: String): Flow<Resource<Unit>>
-    
-    /**
-     * Enable or disable notifications
-     */
-    fun setNotificationsEnabled(enabled: Boolean): Flow<Resource<Unit>>
-    
-    /**
-     * Check if notifications are enabled
-     */
-    fun areNotificationsEnabled(): Flow<Resource<Boolean>>
+    fun getUnreadNotificationCount(userId: String): Flow<Int>
 }

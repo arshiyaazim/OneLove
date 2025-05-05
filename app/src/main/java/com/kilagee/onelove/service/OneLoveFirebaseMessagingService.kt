@@ -5,87 +5,98 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.drawable.Drawable
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.core.app.NotificationCompat
+import androidx.core.os.bundleOf
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.kilagee.onelove.MainActivity
 import com.kilagee.onelove.R
+import com.kilagee.onelove.data.model.Notification
 import com.kilagee.onelove.data.model.NotificationActionType
 import com.kilagee.onelove.data.model.NotificationType
-import com.kilagee.onelove.domain.repository.NotificationRepository
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import javax.inject.Inject
+import com.kilagee.onelove.ui.MainActivity
+import com.kilagee.onelove.ui.calls.IncomingCallActivity
+import com.kilagee.onelove.ui.notifications.NotificationsActivity
+import java.util.Date
+import java.util.UUID
 
-/**
- * Firebase Cloud Messaging service for handling push notifications
- */
-@AndroidEntryPoint
 class OneLoveFirebaseMessagingService : FirebaseMessagingService() {
     
-    @Inject
-    lateinit var notificationRepository: NotificationRepository
+    private val firestore = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
     
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
         
-        // Handle FCM messages here
+        val currentUser = auth.currentUser ?: return
+        
+        // Check if message contains a notification payload
         remoteMessage.notification?.let { notification ->
             val title = notification.title ?: "OneLove"
             val body = notification.body ?: ""
+            val imageUrl = notification.imageUrl?.toString()
             
-            // Get additional data
+            // Handle data payload
             val data = remoteMessage.data
-            val notificationType = data["type"]?.let {
-                try {
-                    NotificationType.valueOf(it)
-                } catch (e: Exception) {
-                    NotificationType.SYSTEM
-                }
-            } ?: NotificationType.SYSTEM
+            val notificationType = getNotificationType(data["type"])
+            val channelId = getChannelId(notificationType)
             
-            val actionType = data["actionType"]?.let {
-                try {
-                    NotificationActionType.valueOf(it)
-                } catch (e: Exception) {
-                    NotificationActionType.NONE
-                }
-            } ?: NotificationActionType.NONE
+            // Create notification ID
+            val notificationId = UUID.randomUUID().toString()
             
-            val notificationId = data["notificationId"]
-            val actionData = data["actionData"]
-            val relatedId = data["relatedId"]
-            val imageUrl = data["imageUrl"]
+            // Determine action type and data
+            val (actionType, actionData) = determineAction(data, notificationType)
             
-            // Show notification
-            sendNotification(
-                title,
-                body,
-                notificationType,
-                actionType,
-                notificationId,
-                actionData,
-                relatedId,
-                imageUrl
+            // Save notification to Firestore
+            saveNotification(
+                notificationId = notificationId,
+                userId = currentUser.uid,
+                title = title,
+                body = body,
+                type = notificationType,
+                data = data,
+                actionType = actionType,
+                actionData = actionData
             )
             
-            // Store notification in the local database if it's not a transient notification
-            if (notificationId != null) {
-                CoroutineScope(Dispatchers.IO).launch {
-                    notificationRepository.createNotification(
-                        title = title,
-                        message = body,
-                        type = notificationType,
-                        relatedId = relatedId,
-                        imageUrl = imageUrl,
-                        actionType = actionType,
-                        actionData = actionData
-                    )
-                }
+            // Special handling for calls
+            if (notificationType == NotificationType.CALL && data["call_action"] == "incoming") {
+                handleIncomingCall(data)
+                return
+            }
+            
+            // Create and show notification
+            if (imageUrl != null) {
+                // Notification with image
+                loadImageAndShowNotification(
+                    notificationId = notificationId.hashCode(),
+                    title = title,
+                    body = body,
+                    imageUrl = imageUrl,
+                    channelId = channelId,
+                    data = data,
+                    notificationType = notificationType
+                )
+            } else {
+                // Simple notification
+                showNotification(
+                    notificationId = notificationId.hashCode(),
+                    title = title,
+                    body = body,
+                    channelId = channelId,
+                    data = data,
+                    notificationType = notificationType
+                )
             }
         }
     }
@@ -93,246 +104,404 @@ class OneLoveFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         
-        // Update token in the repository
-        CoroutineScope(Dispatchers.IO).launch {
-            notificationRepository.updateFcmToken(token)
+        // Update FCM token in Firestore for the current user
+        val currentUser = auth.currentUser ?: return
+        
+        firestore.collection("users")
+            .document(currentUser.uid)
+            .update("fcmToken", token)
+            .addOnFailureListener { e ->
+                // Log failure but don't crash
+                e.printStackTrace()
+            }
+    }
+    
+    private fun getNotificationType(type: String?): NotificationType {
+        return when (type) {
+            "message" -> NotificationType.MESSAGE
+            "match" -> NotificationType.MATCH
+            "call" -> NotificationType.CALL
+            "payment_success", "payment_failed" -> NotificationType.PAYMENT
+            "subscription_activated", "subscription_canceled", "subscription_expiring" -> NotificationType.SUBSCRIPTION
+            "offer" -> NotificationType.OFFER
+            else -> NotificationType.SYSTEM
         }
     }
     
-    /**
-     * Create and show a notification
-     */
-    private fun sendNotification(
+    private fun getChannelId(type: NotificationType): String {
+        return when (type) {
+            NotificationType.MESSAGE, NotificationType.MATCH -> "messages"
+            NotificationType.CALL -> "calls"
+            NotificationType.PAYMENT -> "payments"
+            NotificationType.SUBSCRIPTION -> "subscriptions"
+            NotificationType.OFFER -> "offers"
+            NotificationType.SYSTEM -> "messages" // Default
+        }
+    }
+    
+    private fun determineAction(
+        data: Map<String, String>, 
+        type: NotificationType
+    ): Pair<NotificationActionType?, String?> {
+        return when (type) {
+            NotificationType.MESSAGE -> {
+                val conversationId = data["conversation_id"]
+                if (conversationId != null) {
+                    Pair(NotificationActionType.OPEN_CONVERSATION, conversationId)
+                } else {
+                    Pair(null, null)
+                }
+            }
+            NotificationType.MATCH -> {
+                val profileId = data["profile_id"]
+                if (profileId != null) {
+                    Pair(NotificationActionType.OPEN_PROFILE, profileId)
+                } else {
+                    Pair(null, null)
+                }
+            }
+            NotificationType.CALL -> {
+                val callId = data["call_id"]
+                if (callId != null) {
+                    Pair(NotificationActionType.OPEN_CALL, callId)
+                } else {
+                    Pair(null, null)
+                }
+            }
+            NotificationType.PAYMENT -> {
+                val paymentId = data["payment_id"]
+                if (paymentId != null) {
+                    Pair(NotificationActionType.OPEN_PAYMENT, paymentId)
+                } else {
+                    Pair(NotificationActionType.OPEN_SUBSCRIPTION, null)
+                }
+            }
+            NotificationType.SUBSCRIPTION -> {
+                Pair(NotificationActionType.OPEN_SUBSCRIPTION, null)
+            }
+            NotificationType.OFFER -> {
+                val offerId = data["offer_id"]
+                if (offerId != null) {
+                    Pair(NotificationActionType.OPEN_OFFER, offerId)
+                } else {
+                    Pair(null, null)
+                }
+            }
+            NotificationType.SYSTEM -> {
+                val activity = data["activity"]
+                if (activity != null) {
+                    Pair(NotificationActionType.CUSTOM_ACTIVITY, activity)
+                } else {
+                    Pair(null, null)
+                }
+            }
+        }
+    }
+    
+    private fun saveNotification(
+        notificationId: String,
+        userId: String,
         title: String,
-        message: String,
+        body: String,
         type: NotificationType,
-        actionType: NotificationActionType,
-        notificationId: String?,
-        actionData: String?,
-        relatedId: String?,
-        imageUrl: String?
+        data: Map<String, String>,
+        actionType: NotificationActionType?,
+        actionData: String?
     ) {
-        // Create intent based on action type
-        val intent = createIntentForActionType(actionType, actionData)
+        val notification = hashMapOf(
+            "id" to notificationId,
+            "userId" to userId,
+            "title" to title,
+            "body" to body,
+            "timestamp" to Date(),
+            "read" to false,
+            "type" to type.name,
+            "data" to data,
+            "actionType" to (actionType?.name ?: null),
+            "actionData" to actionData
+        )
+        
+        firestore.collection("notifications")
+            .document(notificationId)
+            .set(notification)
+            .addOnFailureListener { e ->
+                // Log failure but don't crash
+                e.printStackTrace()
+            }
+    }
+    
+    private fun handleIncomingCall(data: Map<String, String>) {
+        val callId = data["call_id"] ?: return
+        val callerId = data["caller_id"] ?: return
+        val callerName = data["caller_name"] ?: "Unknown"
+        val callerPhoto = data["caller_photo"]
+        val callType = data["call_type"] ?: "audio" // audio or video
+        
+        // Launch incoming call activity
+        val intent = Intent(this, IncomingCallActivity::class.java).apply {
+            putExtra("call_id", callId)
+            putExtra("caller_id", callerId)
+            putExtra("caller_name", callerName)
+            putExtra("caller_photo", callerPhoto)
+            putExtra("call_type", callType)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        
+        startActivity(intent)
+    }
+    
+    private fun showNotification(
+        notificationId: Int,
+        title: String,
+        body: String,
+        channelId: String,
+        data: Map<String, String>,
+        notificationType: NotificationType
+    ) {
+        // Create intent based on notification type
+        val intent = createIntent(notificationType, data)
+        
         val pendingIntent = PendingIntent.getActivity(
             this,
-            0,
+            notificationId,
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         
-        // Notification sound
-        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         
-        // Create notification
-        val notificationBuilder = NotificationCompat.Builder(this, getChannelId(type))
-            .setSmallIcon(R.drawable.ic_notification) // TODO: Replace with actual icon
+        val notificationBuilder = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText(message)
+            .setContentText(body)
             .setAutoCancel(true)
-            .setSound(soundUri)
+            .setSound(defaultSoundUri)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
         
-        // For call notifications, add answer/decline actions
-        if (type == NotificationType.CALL_MISSED && actionData != null) {
-            val callId = actionData
-            
-            // Answer call action
-            val answerIntent = Intent(this, MainActivity::class.java).apply {
-                action = "ACTION_ANSWER_CALL"
-                putExtra("callId", callId)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            val answerPendingIntent = PendingIntent.getActivity(
-                this,
-                1,
-                answerIntent,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-            notificationBuilder.addAction(
-                R.drawable.ic_call_answer, // TODO: Replace with actual icon
-                "Answer",
-                answerPendingIntent
-            )
-            
-            // Decline call action
-            val declineIntent = Intent(this, MainActivity::class.java).apply {
-                action = "ACTION_DECLINE_CALL"
-                putExtra("callId", callId)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            val declinePendingIntent = PendingIntent.getActivity(
-                this,
-                2,
-                declineIntent,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-            notificationBuilder.addAction(
-                R.drawable.ic_call_decline, // TODO: Replace with actual icon
-                "Decline",
-                declinePendingIntent
-            )
-            
-            // Full screen intent for calls
-            notificationBuilder.setFullScreenIntent(pendingIntent, true)
-        }
-        
-        // Get notification manager
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         
-        // Create notification channel for Android Oreo and above
+        // Create notification channel for Android O and above
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            createNotificationChannel(notificationManager, type)
+            val channel = notificationManager.getNotificationChannel(channelId)
+            if (channel == null) {
+                val name = when (channelId) {
+                    "messages" -> "Messages"
+                    "calls" -> "Calls"
+                    "payments" -> "Payments"
+                    "subscriptions" -> "Subscriptions"
+                    "offers" -> "Offers"
+                    else -> "Notifications"
+                }
+                
+                val description = "Notifications for $name"
+                val importance = when (channelId) {
+                    "calls" -> NotificationManager.IMPORTANCE_HIGH
+                    "messages" -> NotificationManager.IMPORTANCE_HIGH
+                    else -> NotificationManager.IMPORTANCE_DEFAULT
+                }
+                
+                val newChannel = NotificationChannel(channelId, name, importance).apply {
+                    this.description = description
+                }
+                
+                notificationManager.createNotificationChannel(newChannel)
+            }
         }
         
-        // Show notification
-        val notificationIdInt = notificationId?.hashCode()?.absoluteValue ?: 0
-        notificationManager.notify(notificationIdInt, notificationBuilder.build())
+        notificationManager.notify(notificationId, notificationBuilder.build())
     }
     
-    /**
-     * Create intent based on action type
-     */
-    private fun createIntentForActionType(
-        actionType: NotificationActionType,
-        actionData: String?
+    private fun loadImageAndShowNotification(
+        notificationId: Int,
+        title: String,
+        body: String,
+        imageUrl: String,
+        channelId: String,
+        data: Map<String, String>,
+        notificationType: NotificationType
+    ) {
+        // Load image with Glide
+        Handler(Looper.getMainLooper()).post {
+            Glide.with(applicationContext)
+                .asBitmap()
+                .load(imageUrl)
+                .into(object : CustomTarget<Bitmap>() {
+                    override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                        // Create a big picture style notification with the loaded image
+                        val bigPictureStyle = NotificationCompat.BigPictureStyle()
+                            .bigPicture(resource)
+                            .setBigContentTitle(title)
+                            .setSummaryText(body)
+                        
+                        // Create intent based on notification type
+                        val intent = createIntent(notificationType, data)
+                        
+                        val pendingIntent = PendingIntent.getActivity(
+                            applicationContext,
+                            notificationId,
+                            intent,
+                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                        )
+                        
+                        val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                        
+                        val notificationBuilder = NotificationCompat.Builder(applicationContext, channelId)
+                            .setSmallIcon(R.drawable.ic_notification)
+                            .setContentTitle(title)
+                            .setContentText(body)
+                            .setAutoCancel(true)
+                            .setSound(defaultSoundUri)
+                            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                            .setStyle(bigPictureStyle)
+                            .setContentIntent(pendingIntent)
+                        
+                        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        notificationManager.notify(notificationId, notificationBuilder.build())
+                    }
+                    
+                    override fun onLoadCleared(placeholder: Drawable?) {
+                        // Image loading was cleared, show standard notification instead
+                        showNotification(
+                            notificationId = notificationId,
+                            title = title,
+                            body = body,
+                            channelId = channelId,
+                            data = data,
+                            notificationType = notificationType
+                        )
+                    }
+                    
+                    override fun onLoadFailed(errorDrawable: Drawable?) {
+                        // Image loading failed, show standard notification instead
+                        showNotification(
+                            notificationId = notificationId,
+                            title = title,
+                            body = body,
+                            channelId = channelId,
+                            data = data,
+                            notificationType = notificationType
+                        )
+                    }
+                })
+        }
+    }
+    
+    private fun createIntent(
+        notificationType: NotificationType,
+        data: Map<String, String>
     ): Intent {
-        val intent = Intent(this, MainActivity::class.java)
+        // Default intent opens the notifications screen
+        val intent = Intent(this, NotificationsActivity::class.java)
         
-        when (actionType) {
-            NotificationActionType.OPEN_PROFILE -> {
-                intent.action = "ACTION_OPEN_PROFILE"
-                intent.putExtra("userId", actionData)
+        when (notificationType) {
+            NotificationType.MESSAGE -> {
+                val conversationId = data["conversation_id"]
+                
+                if (conversationId != null) {
+                    // Navigate to specific conversation
+                    try {
+                        // Try to determine if it's a regular or AI conversation
+                        if (data["ai_profile_id"] != null) {
+                            // AI chat
+                            intent.setClassName(this, "com.kilagee.onelove.ui.ai.AIChatActivity")
+                            intent.putExtra("conversation_id", conversationId)
+                        } else {
+                            // Regular chat
+                            intent.setClassName(this, "com.kilagee.onelove.ui.chat.ChatActivity")
+                            intent.putExtra("conversation_id", conversationId)
+                        }
+                    } catch (e: Exception) {
+                        // Fall back to notifications activity
+                        intent.setClassName(this, "com.kilagee.onelove.ui.notifications.NotificationsActivity")
+                    }
+                }
             }
-            NotificationActionType.OPEN_CHAT -> {
-                intent.action = "ACTION_OPEN_CHAT"
-                intent.putExtra("chatId", actionData)
+            NotificationType.MATCH -> {
+                val profileId = data["profile_id"]
+                
+                if (profileId != null) {
+                    // Navigate to profile
+                    try {
+                        intent.setClassName(this, "com.kilagee.onelove.ui.profile.ProfileActivity")
+                        intent.putExtra("profile_id", profileId)
+                    } catch (e: Exception) {
+                        // Fall back to notifications activity
+                        intent.setClassName(this, "com.kilagee.onelove.ui.notifications.NotificationsActivity")
+                    }
+                }
             }
-            NotificationActionType.OPEN_OFFER -> {
-                intent.action = "ACTION_OPEN_OFFER"
-                intent.putExtra("offerId", actionData)
+            NotificationType.CALL -> {
+                // Handled specially in handleIncomingCall
+                // This is for missed calls or other call notifications
+                val callId = data["call_id"]
+                
+                if (callId != null) {
+                    try {
+                        intent.setClassName(this, "com.kilagee.onelove.ui.calls.CallHistoryActivity")
+                    } catch (e: Exception) {
+                        // Fall back to notifications activity
+                        intent.setClassName(this, "com.kilagee.onelove.ui.notifications.NotificationsActivity")
+                    }
+                }
             }
-            NotificationActionType.OPEN_PAYMENT -> {
-                intent.action = "ACTION_OPEN_PAYMENT"
-                intent.putExtra("paymentId", actionData)
+            NotificationType.PAYMENT -> {
+                val paymentId = data["payment_id"]
+                
+                if (paymentId != null) {
+                    try {
+                        intent.setClassName(this, "com.kilagee.onelove.ui.payment.PaymentDetailsActivity")
+                        intent.putExtra("payment_id", paymentId)
+                    } catch (e: Exception) {
+                        try {
+                            // Fall back to subscription activity
+                            intent.setClassName(this, "com.kilagee.onelove.ui.subscription.MyMembershipActivity")
+                        } catch (e2: Exception) {
+                            // Fall back to notifications activity
+                            intent.setClassName(this, "com.kilagee.onelove.ui.notifications.NotificationsActivity")
+                        }
+                    }
+                } else {
+                    try {
+                        // Navigate to subscription screen
+                        intent.setClassName(this, "com.kilagee.onelove.ui.subscription.MyMembershipActivity")
+                    } catch (e: Exception) {
+                        // Fall back to notifications activity
+                        intent.setClassName(this, "com.kilagee.onelove.ui.notifications.NotificationsActivity")
+                    }
+                }
             }
-            NotificationActionType.OPEN_CALL -> {
-                intent.action = "ACTION_OPEN_CALL"
-                intent.putExtra("callId", actionData)
+            NotificationType.SUBSCRIPTION -> {
+                try {
+                    // Navigate to subscription screen
+                    intent.setClassName(this, "com.kilagee.onelove.ui.subscription.MyMembershipActivity")
+                } catch (e: Exception) {
+                    // Fall back to notifications activity
+                    intent.setClassName(this, "com.kilagee.onelove.ui.notifications.NotificationsActivity")
+                }
             }
-            NotificationActionType.OPEN_MATCHES -> {
-                intent.action = "ACTION_OPEN_MATCHES"
+            NotificationType.OFFER -> {
+                val offerId = data["offer_id"]
+                
+                if (offerId != null) {
+                    try {
+                        intent.setClassName(this, "com.kilagee.onelove.ui.offers.OfferDetailsActivity")
+                        intent.putExtra("offer_id", offerId)
+                    } catch (e: Exception) {
+                        // Fall back to notifications activity
+                        intent.setClassName(this, "com.kilagee.onelove.ui.notifications.NotificationsActivity")
+                    }
+                }
             }
-            NotificationActionType.OPEN_SETTINGS -> {
-                intent.action = "ACTION_OPEN_SETTINGS"
-            }
-            NotificationActionType.NONE -> {
-                // No specific action
+            NotificationType.SYSTEM -> {
+                // Default to notifications activity
+                intent.setClassName(this, "com.kilagee.onelove.ui.notifications.NotificationsActivity")
             }
         }
         
-        // Add flags to start a new task
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        // Pass notification ID so it can be marked as read
+        intent.putExtra("notification_id", data["notification_id"])
         
         return intent
-    }
-    
-    /**
-     * Get channel ID based on notification type
-     */
-    private fun getChannelId(type: NotificationType): String {
-        return when (type) {
-            NotificationType.CALL_MISSED, NotificationType.CALL_ENDED -> CHANNEL_ID_CALLS
-            NotificationType.MESSAGE -> CHANNEL_ID_MESSAGES
-            NotificationType.MATCH -> CHANNEL_ID_MATCHES
-            NotificationType.OFFER_RECEIVED, NotificationType.OFFER_ACCEPTED,
-            NotificationType.OFFER_REJECTED, NotificationType.OFFER_EXPIRED -> CHANNEL_ID_OFFERS
-            NotificationType.PAYMENT_RECEIVED, NotificationType.PAYMENT_SENT -> CHANNEL_ID_PAYMENTS
-            NotificationType.PROFILE_VIEW, NotificationType.SYSTEM -> CHANNEL_ID_GENERAL
-        }
-    }
-    
-    /**
-     * Create notification channel for Android Oreo and above
-     */
-    private fun createNotificationChannel(notificationManager: NotificationManager, type: NotificationType) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            when (type) {
-                NotificationType.CALL_MISSED, NotificationType.CALL_ENDED -> {
-                    val channel = NotificationChannel(
-                        CHANNEL_ID_CALLS,
-                        "Calls",
-                        NotificationManager.IMPORTANCE_HIGH
-                    ).apply {
-                        description = "Call notifications"
-                        enableVibration(true)
-                        enableLights(true)
-                    }
-                    notificationManager.createNotificationChannel(channel)
-                }
-                NotificationType.MESSAGE -> {
-                    val channel = NotificationChannel(
-                        CHANNEL_ID_MESSAGES,
-                        "Messages",
-                        NotificationManager.IMPORTANCE_HIGH
-                    ).apply {
-                        description = "Message notifications"
-                        enableVibration(true)
-                    }
-                    notificationManager.createNotificationChannel(channel)
-                }
-                NotificationType.MATCH -> {
-                    val channel = NotificationChannel(
-                        CHANNEL_ID_MATCHES,
-                        "Matches",
-                        NotificationManager.IMPORTANCE_DEFAULT
-                    ).apply {
-                        description = "Match notifications"
-                    }
-                    notificationManager.createNotificationChannel(channel)
-                }
-                NotificationType.OFFER_RECEIVED, NotificationType.OFFER_ACCEPTED,
-                NotificationType.OFFER_REJECTED, NotificationType.OFFER_EXPIRED -> {
-                    val channel = NotificationChannel(
-                        CHANNEL_ID_OFFERS,
-                        "Offers",
-                        NotificationManager.IMPORTANCE_DEFAULT
-                    ).apply {
-                        description = "Offer notifications"
-                    }
-                    notificationManager.createNotificationChannel(channel)
-                }
-                NotificationType.PAYMENT_RECEIVED, NotificationType.PAYMENT_SENT -> {
-                    val channel = NotificationChannel(
-                        CHANNEL_ID_PAYMENTS,
-                        "Payments",
-                        NotificationManager.IMPORTANCE_DEFAULT
-                    ).apply {
-                        description = "Payment notifications"
-                    }
-                    notificationManager.createNotificationChannel(channel)
-                }
-                NotificationType.PROFILE_VIEW, NotificationType.SYSTEM -> {
-                    val channel = NotificationChannel(
-                        CHANNEL_ID_GENERAL,
-                        "General",
-                        NotificationManager.IMPORTANCE_LOW
-                    ).apply {
-                        description = "General notifications"
-                    }
-                    notificationManager.createNotificationChannel(channel)
-                }
-            }
-        }
-    }
-    
-    companion object {
-        private const val CHANNEL_ID_CALLS = "channel_calls"
-        private const val CHANNEL_ID_MESSAGES = "channel_messages"
-        private const val CHANNEL_ID_MATCHES = "channel_matches"
-        private const val CHANNEL_ID_OFFERS = "channel_offers"
-        private const val CHANNEL_ID_PAYMENTS = "channel_payments"
-        private const val CHANNEL_ID_GENERAL = "channel_general"
     }
 }
