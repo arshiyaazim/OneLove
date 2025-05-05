@@ -3,26 +3,13 @@ package com.kilagee.onelove.data.model
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.ColumnInfo
-import androidx.room.ForeignKey
 import java.util.Date
 
-@Entity(
-    tableName = "offers",
-    foreignKeys = [
-        ForeignKey(
-            entity = User::class,
-            parentColumns = ["id"],
-            childColumns = ["sender_id"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = User::class,
-            parentColumns = ["id"],
-            childColumns = ["receiver_id"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ]
-)
+/**
+ * Entity representing an offer between users.
+ * An offer can be a date proposal, activity suggestion, etc.
+ */
+@Entity(tableName = "offers")
 data class Offer(
     @PrimaryKey
     val id: String,
@@ -34,56 +21,67 @@ data class Offer(
     val receiverId: String,
     
     @ColumnInfo(name = "type")
-    val type: OfferType,
+    val type: OfferType = OfferType.COFFEE,
+    
+    @ColumnInfo(name = "title")
+    val title: String,
     
     @ColumnInfo(name = "description")
-    val description: String,
+    val description: String = "",
     
-    @ColumnInfo(name = "points")
-    val points: Int = 0,
+    @ColumnInfo(name = "location")
+    val location: String = "",
     
-    @ColumnInfo(name = "amount")
-    val amount: Double = 0.0,
+    @ColumnInfo(name = "proposed_time")
+    val proposedTime: Date? = null,
     
     @ColumnInfo(name = "status")
     val status: OfferStatus = OfferStatus.PENDING,
+    
+    @ColumnInfo(name = "points_offered")
+    val pointsOffered: Int = 0,
     
     @ColumnInfo(name = "created_at")
     val createdAt: Date = Date(),
     
     @ColumnInfo(name = "updated_at")
-    val updatedAt: Date = Date(),
+    val updatedAt: Date? = null,
     
-    @ColumnInfo(name = "expires_at")
-    val expiresAt: Date? = null,
+    // Additional fields for UI display (not stored in database)
+    @ColumnInfo(name = "sender_name")
+    val senderName: String? = null,
     
-    @ColumnInfo(name = "location")
-    val location: String? = null,
+    @ColumnInfo(name = "sender_profile_image_url")
+    val senderProfileImageUrl: String? = null,
     
-    @ColumnInfo(name = "scheduled_time")
-    val scheduledTime: Date? = null,
+    @ColumnInfo(name = "receiver_name")
+    val receiverName: String? = null,
     
-    @ColumnInfo(name = "is_hidden")
-    val isHidden: Boolean = false
+    @ColumnInfo(name = "receiver_profile_image_url")
+    val receiverProfileImageUrl: String? = null
 )
 
+/**
+ * Types of offers that can be sent
+ */
 enum class OfferType {
-    DINNER,
     COFFEE,
+    DINNER,
     MOVIE,
+    DRINKS,
     WALK,
-    CALL,
     VIDEO_CALL,
-    CHAT,
-    GIFT,
+    TRAVEL,
     CUSTOM
 }
 
+/**
+ * Possible statuses for an offer
+ */
 enum class OfferStatus {
     PENDING,
     ACCEPTED,
     DECLINED,
     CANCELLED,
-    COMPLETED,
-    EXPIRED
+    COMPLETED
 }

@@ -3,6 +3,7 @@ package com.kilagee.onelove.data.model
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.ColumnInfo
+import androidx.room.Ignore
 import java.util.Date
 
 @Entity(tableName = "users")
@@ -24,6 +25,9 @@ data class User(
     
     @ColumnInfo(name = "date_of_birth")
     val dateOfBirth: Date,
+    
+    @ColumnInfo(name = "age")
+    val age: Int? = null,
     
     @ColumnInfo(name = "gender")
     val gender: String,
@@ -65,7 +69,27 @@ data class User(
     val createdAt: Date = Date(),
     
     @ColumnInfo(name = "interests")
-    val interests: List<String> = emptyList()
+    val interests: List<String> = emptyList(),
+    
+    // Matching related fields
+    @ColumnInfo(name = "latitude")
+    val latitude: Double? = null,
+    
+    @ColumnInfo(name = "longitude")
+    val longitude: Double? = null,
+    
+    @ColumnInfo(name = "liked_user_ids")
+    val likedUserIds: List<String> = emptyList(),
+    
+    @ColumnInfo(name = "matched_user_ids")
+    val matchedUserIds: List<String> = emptyList(),
+    
+    @ColumnInfo(name = "rejected_user_ids")
+    val rejectedUserIds: List<String> = emptyList(),
+    
+    // Reference to user preferences (not stored in this table)
+    @Ignore
+    val preferences: UserPreferences? = null
 )
 
 enum class VerificationStatus {

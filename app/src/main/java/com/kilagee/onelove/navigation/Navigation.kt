@@ -12,13 +12,27 @@ import com.kilagee.onelove.ui.authentication.RegisterScreen
 import com.kilagee.onelove.ui.chat.ChatDetailScreen
 import com.kilagee.onelove.ui.chat.ChatScreen
 import com.kilagee.onelove.ui.home.HomeScreen
+import com.kilagee.onelove.ui.matching.MatchScreen
+import com.kilagee.onelove.ui.offers.CreateOfferScreen
+import com.kilagee.onelove.ui.offers.OfferDetailScreen
+import com.kilagee.onelove.ui.offers.OffersScreen
+import com.kilagee.onelove.ui.profile.EditProfileScreen
 import com.kilagee.onelove.ui.profile.ProfileScreen
+import com.kilagee.onelove.ui.profile.VerificationScreen
 import com.kilagee.onelove.ui.settings.SettingsScreen
+import com.kilagee.onelove.ui.settings.UserPreferencesScreen
+import com.kilagee.onelove.ui.wallet.WalletScreen
 
 @Composable
-fun Navigation(navController: NavHostController) {
-    NavHost(navController = navController, startDestination = Screen.Login.route) {
-        // Authentication
+fun Navigation(
+    navController: NavHostController,
+    startDestination: String = Screen.Login.route
+) {
+    NavHost(
+        navController = navController,
+        startDestination = startDestination
+    ) {
+        // Authentication routes
         composable(Screen.Login.route) {
             LoginScreen(navController = navController)
         }
@@ -31,7 +45,7 @@ fun Navigation(navController: NavHostController) {
             ForgotPasswordScreen(navController = navController)
         }
         
-        // Main screens
+        // Main app routes
         composable(Screen.Home.route) {
             HomeScreen(navController = navController)
         }
@@ -40,67 +54,76 @@ fun Navigation(navController: NavHostController) {
             ProfileScreen(navController = navController)
         }
         
+        composable(Screen.EditProfile.route) {
+            EditProfileScreen(navController = navController)
+        }
+        
+        composable(Screen.Verification.route) {
+            VerificationScreen(navController = navController)
+        }
+        
+        // Chat routes
         composable(Screen.Chat.route) {
             ChatScreen(navController = navController)
         }
         
         composable(
             route = Screen.ChatDetail.route,
-            arguments = listOf(navArgument("chatId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("chatId") {
+                    type = NavType.StringType
+                }
+            )
         ) { backStackEntry ->
             val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
-            ChatDetailScreen(navController = navController, chatId = chatId)
+            ChatDetailScreen(
+                navController = navController,
+                chatId = chatId
+            )
         }
         
-        composable(Screen.Settings.route) {
-            SettingsScreen(navController = navController)
-        }
-        
+        // Offers routes
         composable(Screen.Offers.route) {
-            // Will be implemented later
-            // OffersScreen(navController = navController)
+            OffersScreen(navController = navController)
+        }
+        
+        composable(Screen.CreateOffer.route) {
+            CreateOfferScreen(navController = navController)
         }
         
         composable(
             route = Screen.OfferDetail.route,
-            arguments = listOf(navArgument("offerId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("offerId") {
+                    type = NavType.StringType
+                }
+            )
         ) { backStackEntry ->
             val offerId = backStackEntry.arguments?.getString("offerId") ?: ""
-            // Will be implemented later
-            // OfferDetailScreen(navController = navController, offerId = offerId)
+            OfferDetailScreen(
+                navController = navController,
+                offerId = offerId
+            )
         }
         
-        composable(
-            route = Screen.CreateOffer.route,
-            arguments = listOf(navArgument("userId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId") ?: ""
-            // Will be implemented later
-            // CreateOfferScreen(navController = navController, userId = userId)
+        // Matching route
+        composable(Screen.Matches.route) {
+            MatchScreen(navController = navController)
         }
         
+        // Wallet route
         composable(Screen.Wallet.route) {
-            // Will be implemented later
-            // WalletScreen(navController = navController)
+            WalletScreen(navController = navController)
         }
         
-        composable(Screen.WalletTransaction.route) {
-            // Will be implemented later
-            // WalletTransactionScreen(navController = navController)
+        // Settings route
+        composable(Screen.Settings.route) {
+            SettingsScreen(navController = navController)
         }
         
-        composable(Screen.Verification.route) {
-            // Will be implemented later
-            // VerificationScreen(navController = navController)
-        }
-        
-        composable(
-            route = Screen.UserProfile.route,
-            arguments = listOf(navArgument("userId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId") ?: ""
-            // Will be implemented later
-            // UserProfileScreen(navController = navController, userId = userId)
+        // User Preferences route
+        composable(Screen.UserPreferences.route) {
+            UserPreferencesScreen(navController = navController)
         }
     }
 }

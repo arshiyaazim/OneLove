@@ -1,10 +1,9 @@
 package com.kilagee.onelove.navigation
 
 /**
- * Screen routes for navigation.
+ * Screen routes for navigation
  */
 sealed class Screen(val route: String) {
-    object Splash : Screen("splash")
     object Login : Screen("login")
     object Register : Screen("register")
     object ForgotPassword : Screen("forgot_password")
@@ -15,18 +14,14 @@ sealed class Screen(val route: String) {
     object ChatDetail : Screen("chat_detail/{chatId}") {
         fun createRoute(chatId: String) = "chat_detail/$chatId"
     }
-    object Settings : Screen("settings")
     object Offers : Screen("offers")
+    object CreateOffer : Screen("create_offer")
     object OfferDetail : Screen("offer_detail/{offerId}") {
         fun createRoute(offerId: String) = "offer_detail/$offerId"
     }
-    object CreateOffer : Screen("create_offer/{userId}") {
-        fun createRoute(userId: String) = "create_offer/$userId"
-    }
     object Wallet : Screen("wallet")
-    object WalletTransaction : Screen("wallet_transaction")
+    object Settings : Screen("settings")
+    object UserPreferences : Screen("user_preferences")
     object Verification : Screen("verification")
-    object UserProfile : Screen("user_profile/{userId}") {
-        fun createRoute(userId: String) = "user_profile/$userId"
-    }
+    object Matches : Screen("matches")
 }
