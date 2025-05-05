@@ -2,7 +2,7 @@ modules = ["gradle", "java-17-openjdk"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["jdk"]
+packages = ["jdk", "wget", "unzip"]
 
 [workflows]
 runButton = "Project"
