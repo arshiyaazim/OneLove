@@ -1,0 +1,29 @@
+modules = ["gradle", "java-17-openjdk"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["jdk"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Android App"
+
+[[workflows.workflow]]
+name = "Android App"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "./gradlew :app:assembleDebug && adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk"
+waitForPort = 5000
+
+[deployment]
+run = ["sh", "-c", "./gradlew :app:assembleDebug && adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk"]
