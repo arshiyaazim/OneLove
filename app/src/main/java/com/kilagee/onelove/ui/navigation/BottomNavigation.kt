@@ -1,10 +1,23 @@
 package com.kilagee.onelove.ui.navigation
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Chat
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.outlined.CardGiftcard
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -12,73 +25,89 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.kilagee.onelove.R
 
 /**
- * Bottom navigation bar for the main app
+ * Bottom navigation items
+ */
+enum class BottomNavItem(
+    val route: String,
+    val title: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+) {
+    HOME(NavRoutes.HOME, "Home", Icons.Filled.Home, Icons.Outlined.Home),
+    MATCHES(NavRoutes.MATCHES, "Matches", Icons.Filled.Favorite, Icons.Outlined.Favorite),
+    CHAT(NavRoutes.CHAT, "Chat", Icons.Filled.Chat, Icons.Outlined.Chat),
+    AI_CHAT(NavRoutes.AI_CHAT, "AI Chat", Icons.Filled.SmartToy, Icons.Outlined.SmartToy),
+    OFFERS(NavRoutes.OFFERS, "Offers", Icons.Filled.CardGiftcard, Icons.Outlined.CardGiftcard),
+    PROFILE(NavRoutes.PROFILE, "Profile", Icons.Filled.Person, Icons.Outlined.Person),
+    SETTINGS(NavRoutes.SETTINGS, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
+}
+
+/**
+ * App bottom navigation bar
  */
 @Composable
-fun BottomNavigation(
+fun BottomNavigationBar(
     navController: NavController,
-    bottomBarState: MutableState<Boolean>
+    modifier: Modifier = Modifier
 ) {
-    val items = listOf(
-        NavItem.Home,
-        NavItem.Discover,
-        NavItem.Chat,
-        NavItem.AIChat,
-        NavItem.Profile
-    )
-    
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     
-    // Show bottom bar only on main screens
-    val showBottomBar = NavItem.values().any { it.route == currentRoute }
+    // Only show bottom navigation on main screens, not detail screens
+    val showBottomNav = when (currentRoute) {
+        NavRoutes.HOME, 
+        NavRoutes.MATCHES, 
+        NavRoutes.CHAT, 
+        NavRoutes.AI_CHAT,
+        NavRoutes.OFFERS,
+        NavRoutes.PROFILE,
+        NavRoutes.SETTINGS -> true
+        else -> false
+    }
     
-    bottomBarState.value = showBottomBar
-    
-    AnimatedVisibility(
-        visible = bottomBarState.value,
-        enter = slideInVertically(initialOffsetY = { it }),
-        exit = slideOutVertically(targetOffsetY = { it })
-    ) {
+    if (showBottomNav) {
         NavigationBar(
-            modifier = Modifier
-                .navigationBarsPadding()
-                .height(65.dp),
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface
+            modifier = modifier
+                .fillMaxWidth()
+                .height(60.dp),
+            containerColor = MaterialTheme.colorScheme.surface
         ) {
-            items.forEach { item ->
-                val selected = item.route == currentRoute
-                
+            BottomNavItem.values().forEach { item ->
                 NavigationBarItem(
                     icon = {
                         Icon(
-                            painter = painterResource(id = if (selected) item.selectedIcon else item.icon),
-                            contentDescription = item.title
+                            imageVector = if (currentRoute == item.route) {
+                                item.selectedIcon
+                            } else {
+                                item.unselectedIcon
+                            },
+                            contentDescription = item.title,
+                            modifier = Modifier.size(24.dp)
                         )
                     },
-                    label = { Text(text = item.title) },
-                    selected = selected,
+                    label = {
+                        Text(
+                            text = item.title,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    },
+                    selected = currentRoute == item.route,
                     onClick = {
-                        if (item.route != currentRoute) {
+                        // Avoid unnecessary navigation to the same route
+                        if (currentRoute != item.route) {
                             navController.navigate(item.route) {
                                 // Pop up to the start destination of the graph to
                                 // avoid building up a large stack of destinations
-                                navController.graph.startDestinationRoute?.let { route ->
-                                    popUpTo(route) {
-                                        saveState = true
-                                    }
+                                popUpTo(NavRoutes.HOME) {
+                                    saveState = true
                                 }
                                 // Avoid multiple copies of the same destination when
                                 // reselecting the same item
@@ -91,53 +120,10 @@ fun BottomNavigation(
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.primary,
                         selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        indicatorColor = MaterialTheme.colorScheme.secondaryContainer
                     )
                 )
             }
         }
     }
-}
-
-/**
- * Navigation items for the bottom navigation bar
- */
-enum class NavItem(
-    val route: String,
-    val title: String,
-    val icon: Int,
-    val selectedIcon: Int
-) {
-    Home(
-        route = Screen.Home.route,
-        title = "Home",
-        icon = R.drawable.ic_home_outlined,
-        selectedIcon = R.drawable.ic_home_filled
-    ),
-    Discover(
-        route = Screen.Discover.route,
-        title = "Discover",
-        icon = R.drawable.ic_explore_outlined,
-        selectedIcon = R.drawable.ic_explore_filled
-    ),
-    Chat(
-        route = Screen.ChatList.route,
-        title = "Chat",
-        icon = R.drawable.ic_chat_outlined,
-        selectedIcon = R.drawable.ic_chat_filled
-    ),
-    AIChat(
-        route = Screen.AIProfiles.route,
-        title = "AI Chat",
-        icon = R.drawable.ic_ai_outlined,
-        selectedIcon = R.drawable.ic_ai_filled
-    ),
-    Profile(
-        route = Screen.Profile.route,
-        title = "Profile",
-        icon = R.drawable.ic_person_outlined,
-        selectedIcon = R.drawable.ic_person_filled
-    )
 }

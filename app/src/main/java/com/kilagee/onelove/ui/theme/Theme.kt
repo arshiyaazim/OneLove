@@ -16,45 +16,29 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Primary colors
-val Primary = Color(0xFFFF5252)
-val PrimaryLight = Color(0xFFFF867F)
-val PrimaryDark = Color(0xFFC50E29)
+// OneLove primary color palette
+val PrimaryPurple = Color(0xFF6A1B9A)
+val PrimaryVariant = Color(0xFF9C27B0)
+val SecondaryPink = Color(0xFFE91E63)
+val BackgroundLight = Color(0xFFF8F8F8)
+val BackgroundDark = Color(0xFF121212)
+val Surface = Color(0xFFFFFFFF)
+val Error = Color(0xFFB00020)
 
-// Secondary colors
-val Secondary = Color(0xFF2979FF)
-val SecondaryLight = Color(0xFF75A7FF)
-val SecondaryDark = Color(0xFF004ECB)
-
-// Verified badge color
-val Verified = Color(0xFF00BFA5)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Primary,
-    primaryContainer = PrimaryLight.copy(alpha = 0.2f),
-    onPrimaryContainer = PrimaryDark,
-    secondary = Secondary,
-    secondaryContainer = SecondaryLight.copy(alpha = 0.2f),
-    onSecondaryContainer = SecondaryDark,
-    surface = Color(0xFFFFFBFE),
-    onSurface = Color(0xFF1C1B1F),
-    background = Color(0xFFFFFBFE),
-    onBackground = Color(0xFF1C1B1F),
-    error = Color(0xFFB3261E)
+private val LightColors = lightColorScheme(
+    primary = PrimaryPurple,
+    secondary = SecondaryPink,
+    background = BackgroundLight,
+    surface = Surface,
+    error = Error
 )
 
-private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryLight,
-    primaryContainer = Primary.copy(alpha = 0.2f),
-    onPrimaryContainer = PrimaryLight,
-    secondary = SecondaryLight,
-    secondaryContainer = Secondary.copy(alpha = 0.2f),
-    onSecondaryContainer = SecondaryLight,
-    surface = Color(0xFF1C1B1F),
-    onSurface = Color(0xFFE6E1E5),
-    background = Color(0xFF1C1B1F),
-    onBackground = Color(0xFFE6E1E5),
-    error = Color(0xFFF2B8B5)
+private val DarkColors = darkColorScheme(
+    primary = PrimaryVariant,
+    secondary = SecondaryPink,
+    background = BackgroundDark,
+    surface = Color(0xFF1E1E1E),
+    error = Error
 )
 
 @Composable
@@ -69,8 +53,8 @@ fun OneLoveTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        darkTheme -> DarkColors
+        else -> LightColors
     }
     
     val view = LocalView.current

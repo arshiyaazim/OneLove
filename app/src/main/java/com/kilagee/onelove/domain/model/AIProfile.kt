@@ -3,66 +3,100 @@ package com.kilagee.onelove.domain.model
 import java.util.UUID
 
 /**
- * Data class representing an AI profile in the app
+ * Data class representing an AI profile in the system
  */
 data class AIProfile(
     val id: String = UUID.randomUUID().toString(),
     val name: String = "",
-    val photoUrl: String = "",
-    val age: Int = 25,
-    val gender: String = "",
-    val country: String = "",
-    val city: String = "",
-    val personality: String = "",
     val bio: String = "",
+    val photoUrl: String = "",
+    val personalityType: String = "",
     val interests: List<String> = emptyList(),
-    val conversationId: String = UUID.randomUUID().toString(),
-    val personalityTags: List<String> = emptyList(),
+    val responseTemplates: Map<String, List<String>> = emptyMap(),
+    val responses: List<AIResponse> = emptyList(),
+    val isPremium: Boolean = false,
+    val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val createdBy: String? = null,
+    val updatedBy: String? = null
 ) {
-    /**
-     * Creates a map representation of this AIProfile object
-     */
     fun toMap(): Map<String, Any?> {
         return mapOf(
             "id" to id,
             "name" to name,
-            "photoUrl" to photoUrl,
-            "age" to age,
-            "gender" to gender,
-            "country" to country,
-            "city" to city,
-            "personality" to personality,
             "bio" to bio,
+            "photoUrl" to photoUrl,
+            "personalityType" to personalityType,
             "interests" to interests,
-            "conversationId" to conversationId,
-            "personalityTags" to personalityTags,
+            "responseTemplates" to responseTemplates,
+            "responses" to responses.map { it.toMap() },
+            "isPremium" to isPremium,
+            "isActive" to isActive,
             "createdAt" to createdAt,
-            "updatedAt" to updatedAt
+            "updatedAt" to updatedAt,
+            "createdBy" to createdBy,
+            "updatedBy" to updatedBy
         )
     }
-    
+
     companion object {
-        /**
-         * Creates an AIProfile from a map
-         */
         fun fromMap(map: Map<String, Any?>): AIProfile {
+            @Suppress("UNCHECKED_CAST")
+            val responsesList = (map["responses"] as? List<Map<String, Any?>>)?.map {
+                AIResponse.fromMap(it)
+            } ?: emptyList()
+
+            @Suppress("UNCHECKED_CAST")
             return AIProfile(
                 id = map["id"] as? String ?: UUID.randomUUID().toString(),
                 name = map["name"] as? String ?: "",
-                photoUrl = map["photoUrl"] as? String ?: "",
-                age = (map["age"] as? Long)?.toInt() ?: 25,
-                gender = map["gender"] as? String ?: "",
-                country = map["country"] as? String ?: "",
-                city = map["city"] as? String ?: "",
-                personality = map["personality"] as? String ?: "",
                 bio = map["bio"] as? String ?: "",
-                interests = (map["interests"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
-                conversationId = map["conversationId"] as? String ?: UUID.randomUUID().toString(),
-                personalityTags = (map["personalityTags"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                photoUrl = map["photoUrl"] as? String ?: "",
+                personalityType = map["personalityType"] as? String ?: "",
+                interests = (map["interests"] as? List<String>) ?: emptyList(),
+                responseTemplates = (map["responseTemplates"] as? Map<String, List<String>>) ?: emptyMap(),
+                responses = responsesList,
+                isPremium = map["isPremium"] as? Boolean ?: false,
+                isActive = map["isActive"] as? Boolean ?: true,
                 createdAt = (map["createdAt"] as? Long) ?: System.currentTimeMillis(),
-                updatedAt = (map["updatedAt"] as? Long) ?: System.currentTimeMillis()
+                updatedAt = (map["updatedAt"] as? Long) ?: System.currentTimeMillis(),
+                createdBy = map["createdBy"] as? String,
+                updatedBy = map["updatedBy"] as? String
+            )
+        }
+    }
+}
+
+/**
+ * Data class representing an AI response template
+ */
+data class AIResponse(
+    val id: String = UUID.randomUUID().toString(),
+    val type: String = "", // flirty, romantic, serious, funny, etc.
+    val text: String = "",
+    val triggers: List<String> = emptyList(), // Keywords that trigger this response
+    val priority: Int = 0 // Higher priority responses are selected first when multiple triggers match
+) {
+    fun toMap(): Map<String, Any?> {
+        return mapOf(
+            "id" to id,
+            "type" to type,
+            "text" to text,
+            "triggers" to triggers,
+            "priority" to priority
+        )
+    }
+
+    companion object {
+        fun fromMap(map: Map<String, Any?>): AIResponse {
+            @Suppress("UNCHECKED_CAST")
+            return AIResponse(
+                id = map["id"] as? String ?: UUID.randomUUID().toString(),
+                type = map["type"] as? String ?: "",
+                text = map["text"] as? String ?: "",
+                triggers = (map["triggers"] as? List<String>) ?: emptyList(),
+                priority = (map["priority"] as? Int) ?: 0
             )
         }
     }

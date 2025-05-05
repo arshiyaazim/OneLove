@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+    
+    // Check if user exists
+    function isUserAuth() {
+      return isAuth() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    
+    // Check if user is an admin
+    function isAdmin() {
+      return isAuth() && 
+        exists(/databases/$(database)/documents/admins) &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    
+    // Check if user is a super admin
+    function isSuperAdmin() {
+      return isAuth() && 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'SUPER_ADMIN';
+    }
+    
+    // Check if user has a specific admin permission
+    function hasPermission(permission) {
+      let adminDoc = get(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return isAdmin() && 
+        (adminDoc.data.role == 'SUPER_ADMIN' || 
+         adminDoc.data.permissions.hasAny([permission]));
+    }
+    
+    // Basic user profile rules
+    match /users/{userId} {
+      // User can read and write their own profile
+      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuth() && request.auth.uid == userId;
+      
+      // Admin can update user profiles
+      allow update: if isAdmin() && hasPermission('EDIT_USERS');
+      
+      // Only admin can delete users
+      allow delete: if isAdmin() && hasPermission('DELETE_USERS');
+    }
+    
+    // Admin rules
+    match /admins/{adminId} {
+      // Only admins can read admin records
+      allow read: if isAdmin();
+      
+      // Only super admin can create/update/delete admin records
+      allow write: if isSuperAdmin();
+    }
+    
+    // Verification request rules
+    match /verification_requests/{requestId} {
+      // Users can read and create their own verification requests
+      allow read: if isAuth() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() && hasPermission('APPROVE_VERIFICATION')
+      );
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      
+      // Only admins can update verification requests (approve/reject)
+      allow update: if isAdmin() && (
+        hasPermission('APPROVE_VERIFICATION') || 
+        hasPermission('REJECT_VERIFICATION')
+      );
+    }
+    
+    // Subscription request rules
+    match /subscription_requests/{requestId} {
+      // Users can read and create their own subscription requests
+      allow read: if isAuth() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() && hasPermission('MANAGE_SUBSCRIPTIONS')
+      );
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      
+      // Only admins can update subscription requests (approve/reject)
+      allow update: if isAdmin() && hasPermission('MANAGE_SUBSCRIPTIONS');
+    }
+    
+    // AI profile rules
+    match /ai_profiles/{profileId} {
+      // Anyone can read AI profiles
+      allow read: if isAuth();
+      
+      // Only admins can create/update/delete AI profiles
+      allow write: if isAdmin() && hasPermission('MANAGE_AI_PROFILES');
+    }
+    
+    // Admin logs rules
+    match /admin_logs/{logId} {
+      // Only admins can read logs
+      allow read: if isAdmin() && hasPermission('VIEW_LOGS');
+      
+      // Admins can create logs of their own actions
+      allow create: if isAdmin() && request.resource.data.adminId == request.auth.uid;
+      
+      // Logs cannot be updated or deleted
+      allow update, delete: if false;
+    }
+    
+    // App settings rules
+    match /settings/app_settings {
+      // Anyone can read app settings
+      allow read: if isAuth();
+      
+      // Only admins can update app settings
+      allow write: if isAdmin() && hasPermission('MANAGE_APP_SETTINGS');
+    }
+    
+    // Flagged content rules
+    match /flagged_content/{contentId} {
+      // Users can create flagged content reports
+      allow create: if isAuth();
+      
+      // Only admins can read and update flagged content
+      allow read, update: if isAdmin() && hasPermission('VIEW_FLAGGED_CONTENT');
+      
+      // Only admins can delete flagged content
+      allow delete: if isAdmin() && hasPermission('REMOVE_CONTENT');
+    }
+    
+    // System notifications rules
+    match /notifications/{notificationId} {
+      // Users can read notifications targeted to them
+      allow read: if isAuth() && (
+        resource.data.targetType == 'ALL_USERS' || 
+        resource.data.targetType == 'PREMIUM_USERS' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium ||
+        resource.data.targetType == 'NON_PREMIUM_USERS' && !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium ||
+        resource.data.targetType == 'SPECIFIC_USERS' && resource.data.targetIds.hasAny([request.auth.uid])
+      );
+      
+      // Only admins can create/update notifications
+      allow write: if isAdmin() && hasPermission('SEND_NOTIFICATIONS');
+    }
+  }
+}
