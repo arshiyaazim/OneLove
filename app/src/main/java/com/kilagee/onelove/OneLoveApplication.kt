@@ -5,8 +5,9 @@ import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
 class OneLoveApplication : Application() {
+    
     override fun onCreate() {
         super.onCreate()
-        // Initialize any global components here
+        // Initialize any app-wide configurations here
     }
 }

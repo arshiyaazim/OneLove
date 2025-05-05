@@ -3,13 +3,13 @@ package com.kilagee.onelove.di
 import android.content.Context
 import androidx.room.Room
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.FirebaseStorage
-import com.google.firebase.storage.ktx.storage
 import com.kilagee.onelove.data.database.OneLoveDatabase
+import com.kilagee.onelove.data.repository.FirebaseAuthRepository
+import com.kilagee.onelove.data.repository.FirebaseChatRepository
+import com.kilagee.onelove.domain.repository.AuthRepository
+import com.kilagee.onelove.domain.repository.ChatRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,45 +21,73 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
     
-    @Provides
+    // Firebase
     @Singleton
-    fun provideFirebaseAuth(): FirebaseAuth = Firebase.auth
+    @Provides
+    fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
     
-    @Provides
     @Singleton
-    fun provideFirebaseFirestore(): FirebaseFirestore = Firebase.firestore
+    @Provides
+    fun provideFirebaseFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
     
-    @Provides
     @Singleton
-    fun provideFirebaseStorage(): FirebaseStorage = Firebase.storage
+    @Provides
+    fun provideFirebaseStorage(): FirebaseStorage = FirebaseStorage.getInstance()
     
-    @Provides
+    // Room Database
     @Singleton
-    fun provideOneLoveDatabase(@ApplicationContext context: Context): OneLoveDatabase {
+    @Provides
+    fun provideDatabase(@ApplicationContext context: Context): OneLoveDatabase {
         return Room.databaseBuilder(
             context,
             OneLoveDatabase::class.java,
             "onelove_database"
-        ).fallbackToDestructiveMigration().build()
+        )
+            .fallbackToDestructiveMigration()
+            .build()
     }
     
-    @Provides
+    // DAOs
     @Singleton
+    @Provides
     fun provideUserDao(database: OneLoveDatabase) = database.userDao()
     
-    @Provides
     @Singleton
+    @Provides
     fun providePostDao(database: OneLoveDatabase) = database.postDao()
     
-    @Provides
     @Singleton
+    @Provides
     fun provideMessageDao(database: OneLoveDatabase) = database.messageDao()
     
-    @Provides
     @Singleton
+    @Provides
     fun provideChatDao(database: OneLoveDatabase) = database.chatDao()
     
-    @Provides
     @Singleton
+    @Provides
     fun provideOfferDao(database: OneLoveDatabase) = database.offerDao()
+    
+    // Repositories
+    @Singleton
+    @Provides
+    fun provideAuthRepository(
+        auth: FirebaseAuth,
+        firestore: FirebaseFirestore,
+        storage: FirebaseStorage,
+        userDao: com.kilagee.onelove.data.database.dao.UserDao
+    ): AuthRepository {
+        return FirebaseAuthRepository(auth, firestore, storage, userDao)
+    }
+    
+    @Singleton
+    @Provides
+    fun provideChatRepository(
+        auth: FirebaseAuth,
+        firestore: FirebaseFirestore,
+        chatDao: com.kilagee.onelove.data.database.dao.ChatDao,
+        messageDao: com.kilagee.onelove.data.database.dao.MessageDao
+    ): ChatRepository {
+        return FirebaseChatRepository(auth, firestore, chatDao, messageDao)
+    }
 }

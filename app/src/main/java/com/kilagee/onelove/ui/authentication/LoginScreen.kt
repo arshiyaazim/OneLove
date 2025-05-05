@@ -1,59 +1,93 @@
 package com.kilagee.onelove.ui.authentication
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.kilagee.onelove.R
+import com.kilagee.onelove.domain.model.Resource
 import com.kilagee.onelove.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreen(navController: NavController) {
+fun LoginScreen(
+    navController: NavController,
+    viewModel: AuthViewModel = hiltViewModel()
+) {
+    // UI State
     val email = remember { mutableStateOf("") }
     val password = remember { mutableStateOf("") }
-    val isLoading = remember { mutableStateOf(false) }
-    val errorMessage = remember { mutableStateOf<String?>(null) }
+    val passwordVisible = remember { mutableStateOf(false) }
+    val loginState by viewModel.loginState.collectAsState()
     
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.login)) }
-            )
+    // Effect to navigate after successful login
+    LaunchedEffect(loginState) {
+        if (loginState is Resource.Success) {
+            navController.navigate(Screen.Home.route) {
+                popUpTo(Screen.Login.route) { inclusive = true }
+            }
+            viewModel.clearLoginState()
         }
-    ) { paddingValues ->
+    }
+    
+    Scaffold {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(it)
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             // App Logo
-            Text(
-                text = "OneLove",
-                style = MaterialTheme.typography.headlineLarge
+            Image(
+                painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                contentDescription = "App Logo",
+                modifier = Modifier
+                    .size(120.dp)
+                    .padding(bottom = 24.dp)
             )
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 48.dp)
+            )
             
             // Email Field
             OutlinedTextField(
                 value = email.value,
                 onValueChange = { email.value = it },
                 label = { Text(stringResource(R.string.email)) },
-                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Email,
+                        contentDescription = "Email Icon"
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
                     imeAction = ImeAction.Next
@@ -61,15 +95,29 @@ fun LoginScreen(navController: NavController) {
                 singleLine = true
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
-            
             // Password Field
             OutlinedTextField(
                 value = password.value,
                 onValueChange = { password.value = it },
                 label = { Text(stringResource(R.string.password)) },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Password Icon"
+                    )
+                },
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible.value = !passwordVisible.value }) {
+                        Icon(
+                            imageVector = if (passwordVisible.value) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = "Toggle Password Visibility"
+                        )
+                    }
+                },
+                visualTransformation = if (passwordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password,
                     imeAction = ImeAction.Done
@@ -77,66 +125,61 @@ fun LoginScreen(navController: NavController) {
                 singleLine = true
             )
             
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Forgot Password Link
-            TextButton(
-                onClick = { navController.navigate(Screen.ForgotPassword.route) },
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(text = stringResource(R.string.forgot_password))
+            // Error Message
+            if (loginState is Resource.Error) {
+                Text(
+                    text = (loginState as Resource.Error).message,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                )
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
             
             // Login Button
             Button(
                 onClick = {
-                    // Implement login logic here
-                    isLoading.value = true
-                    // Simulate login process
-                    // In a real app, this would call a ViewModel method
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
+                    if (email.value.isNotBlank() && password.value.isNotBlank()) {
+                        viewModel.login(email.value, password.value)
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
-                enabled = !isLoading.value && email.value.isNotEmpty() && password.value.isNotEmpty()
+                    .height(56.dp)
             ) {
-                if (isLoading.value) {
+                if (loginState is Resource.Loading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
+                        color = Color.White
                     )
                 } else {
-                    Text(text = stringResource(R.string.login))
+                    Text(stringResource(R.string.login))
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Error Message
-            errorMessage.value?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
+            // Forgot Password Link
+            TextButton(
+                onClick = { navController.navigate(Screen.ForgotPassword.route) },
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                Text(stringResource(R.string.forgot_password))
             }
+            
+            Spacer(modifier = Modifier.weight(1f))
             
             // Register Link
             Row(
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = "Don't have an account?")
-                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.dont_have_account),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
                 TextButton(onClick = { navController.navigate(Screen.Register.route) }) {
-                    Text(text = stringResource(R.string.register))
+                    Text(stringResource(R.string.register))
                 }
             }
         }

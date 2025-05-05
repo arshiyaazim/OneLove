@@ -3,6 +3,7 @@ package com.kilagee.onelove.data.database
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.kilagee.onelove.data.database.dao.*
 import com.kilagee.onelove.data.model.*
 import com.kilagee.onelove.domain.util.DateConverter
 import com.kilagee.onelove.domain.util.ListConverter
