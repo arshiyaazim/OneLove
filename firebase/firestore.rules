@@ -14,7 +14,6 @@ service cloud.firestore {
     // Check if user is an admin
     function isAdmin() {
       return isAuth() && 
-        exists(/databases/$(database)/documents/admins) &&
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
     
@@ -33,16 +32,42 @@ service cloud.firestore {
          adminDoc.data.permissions.hasAny([permission]));
     }
     
+    // Check if user is premium
+    function isPremium() {
+      return isUserAuth() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium == true &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.premiumExpiresAt > request.time.toMillis();
+    }
+    
+    // Check if user is verified
+    function isVerified() {
+      return isUserAuth() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isVerified == true;
+    }
+    
+    // Check for banned users
+    function isNotBanned() {
+      return isUserAuth() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBanned == null || 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBanned == false);
+    }
+    
     // Basic user profile rules
     match /users/{userId} {
-      // User can read and write their own profile
-      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAuth() && request.auth.uid == userId;
+      // User can read their own profile, admins can read any profile
+      allow read: if isAuth() && isNotBanned() && (request.auth.uid == userId || isAdmin());
       
-      // Admin can update user profiles
+      // User can update their own profile
+      allow update: if isAuth() && isNotBanned() && request.auth.uid == userId && 
+                     !request.resource.data.diff(resource.data).affectedKeys()
+                      .hasAny(['isPremium', 'premiumTier', 'premiumExpiresAt', 'isVerified', 'verificationLevel', 'isAdmin', 'isBanned']);
+      
+      // User can create their own profile
+      allow create: if isAuth() && request.auth.uid == userId && 
+                     !request.resource.data.keys().hasAny(['isPremium', 'isVerified', 'isAdmin', 'isBanned']);
+      
+      // Admin can update and delete user profiles with proper permissions
       allow update: if isAdmin() && hasPermission('EDIT_USERS');
-      
-      // Only admin can delete users
       allow delete: if isAdmin() && hasPermission('DELETE_USERS');
     }
     
@@ -58,11 +83,15 @@ service cloud.firestore {
     // Verification request rules
     match /verification_requests/{requestId} {
       // Users can read and create their own verification requests
-      allow read: if isAuth() && (
+      allow read: if isAuth() && isNotBanned() && (
         resource.data.userId == request.auth.uid || 
         isAdmin() && hasPermission('APPROVE_VERIFICATION')
       );
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      
+      // Users can create verification requests with limitations
+      allow create: if isAuth() && isNotBanned() && 
+                     request.resource.data.userId == request.auth.uid &&
+                     request.resource.data.status == 'PENDING';
       
       // Only admins can update verification requests (approve/reject)
       allow update: if isAdmin() && (
@@ -74,11 +103,15 @@ service cloud.firestore {
     // Subscription request rules
     match /subscription_requests/{requestId} {
       // Users can read and create their own subscription requests
-      allow read: if isAuth() && (
+      allow read: if isAuth() && isNotBanned() && (
         resource.data.userId == request.auth.uid || 
         isAdmin() && hasPermission('MANAGE_SUBSCRIPTIONS')
       );
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      
+      // Users can create subscription requests with limitations
+      allow create: if isAuth() && isNotBanned() && 
+                     request.resource.data.userId == request.auth.uid &&
+                     request.resource.data.status == 'PENDING';
       
       // Only admins can update subscription requests (approve/reject)
       allow update: if isAdmin() && hasPermission('MANAGE_SUBSCRIPTIONS');
@@ -86,11 +119,62 @@ service cloud.firestore {
     
     // AI profile rules
     match /ai_profiles/{profileId} {
-      // Anyone can read AI profiles
-      allow read: if isAuth();
+      // Anyone can read non-premium AI profiles
+      allow read: if isAuth() && isNotBanned() && (
+        resource.data.isPremium == false || 
+        (resource.data.isPremium == true && isPremium()) ||
+        isAdmin()
+      );
       
       // Only admins can create/update/delete AI profiles
       allow write: if isAdmin() && hasPermission('MANAGE_AI_PROFILES');
+    }
+    
+    // Chat rules
+    match /chats/{chatId} {
+      // Users can only read chats they are part of
+      allow read: if isAuth() && isNotBanned() && (
+        resource.data.participants[request.auth.uid] == true ||
+        isAdmin() && hasPermission('VIEW_FLAGGED_CONTENT')
+      );
+      
+      // Users can create and update chats they are part of
+      allow create, update: if isAuth() && isNotBanned() && request.resource.data.participants[request.auth.uid] == true;
+      
+      // Only admins can delete chats
+      allow delete: if isAdmin() && hasPermission('REMOVE_CONTENT');
+      
+      // Chat messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuth() && isNotBanned() && get(/databases/$(database)/documents/chats/$(chatId)).data.participants[request.auth.uid] == true;
+        allow create: if isAuth() && isNotBanned() && 
+                      request.resource.data.senderId == request.auth.uid && 
+                      get(/databases/$(database)/documents/chats/$(chatId)).data.participants[request.auth.uid] == true;
+        allow update: if isAdmin() && hasPermission('REMOVE_CONTENT');
+        allow delete: if isAdmin() && hasPermission('REMOVE_CONTENT');
+      }
+    }
+    
+    // Offers rules
+    match /offers/{offerId} {
+      // Sender and recipient can read offers, admins can read any offer
+      allow read: if isAuth() && isNotBanned() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin() && hasPermission('VIEW_FLAGGED_CONTENT')
+      );
+      
+      // Users can create offers they send
+      allow create: if isAuth() && isNotBanned() && 
+                     request.resource.data.senderId == request.auth.uid;
+      
+      // Recipients can update offers to accept/reject
+      allow update: if isAuth() && isNotBanned() && 
+                    resource.data.recipientId == request.auth.uid && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt']);
+      
+      // Admins can delete inappropriate offers
+      allow delete: if isAdmin() && hasPermission('REMOVE_CONTENT');
     }
     
     // Admin logs rules
@@ -117,7 +201,7 @@ service cloud.firestore {
     // Flagged content rules
     match /flagged_content/{contentId} {
       // Users can create flagged content reports
-      allow create: if isAuth();
+      allow create: if isAuth() && isNotBanned();
       
       // Only admins can read and update flagged content
       allow read, update: if isAdmin() && hasPermission('VIEW_FLAGGED_CONTENT');
@@ -129,15 +213,31 @@ service cloud.firestore {
     // System notifications rules
     match /notifications/{notificationId} {
       // Users can read notifications targeted to them
-      allow read: if isAuth() && (
+      allow read: if isAuth() && isNotBanned() && (
         resource.data.targetType == 'ALL_USERS' || 
-        resource.data.targetType == 'PREMIUM_USERS' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium ||
-        resource.data.targetType == 'NON_PREMIUM_USERS' && !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium ||
+        resource.data.targetType == 'PREMIUM_USERS' && isPremium() ||
+        resource.data.targetType == 'NON_PREMIUM_USERS' && !isPremium() ||
+        resource.data.targetType == 'VERIFIED_USERS' && isVerified() ||
         resource.data.targetType == 'SPECIFIC_USERS' && resource.data.targetIds.hasAny([request.auth.uid])
       );
       
       // Only admins can create/update notifications
       allow write: if isAdmin() && hasPermission('SEND_NOTIFICATIONS');
+    }
+    
+    // User points/rewards rules
+    match /user_points/{userId} {
+      // Users can read their own points, admins can read any user's points
+      allow read: if isAuth() && isNotBanned() && (request.auth.uid == userId || isAdmin());
+      
+      // Only the system and admins can update points
+      allow update: if isAdmin() && hasPermission('MANAGE_POINTS');
+    }
+    
+    // Analytics data rules
+    match /analytics/{docId} {
+      // Only admins can read or write analytics data
+      allow read, write: if isAdmin() && hasPermission('VIEW_ANALYTICS');
     }
   }
 }

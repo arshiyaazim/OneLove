@@ -1,27 +1,49 @@
 package com.kilagee.onelove.di
 
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.messaging.FirebaseMessaging
-import com.kilagee.onelove.data.repository.AdminRepositoryImpl
-import com.kilagee.onelove.domain.repository.AdminRepository
+import com.kilagee.onelove.data.repository.AuthRepository
+import com.kilagee.onelove.data.repository.MessageRepository
+import com.kilagee.onelove.data.repository.StorageRepository
+import com.kilagee.onelove.data.repository.UserRepository
+import com.kilagee.onelove.data.repository.impl.AuthRepositoryImpl
+import com.kilagee.onelove.data.repository.impl.MessageRepositoryImpl
+import com.kilagee.onelove.data.repository.impl.StorageRepositoryImpl
+import com.kilagee.onelove.data.repository.impl.UserRepositoryImpl
+import dagger.Binds
 import dagger.Module
-import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
+/**
+ * Dagger Hilt module for providing repository implementations
+ */
 @Module
 @InstallIn(SingletonComponent::class)
-object RepositoryModule {
+abstract class RepositoryModule {
     
-    @Provides
+    @Binds
     @Singleton
-    fun provideAdminRepository(
-        firestore: FirebaseFirestore,
-        auth: FirebaseAuth,
-        messaging: FirebaseMessaging
-    ): AdminRepository {
-        return AdminRepositoryImpl(firestore, auth, messaging)
-    }
+    abstract fun bindAuthRepository(
+        authRepositoryImpl: AuthRepositoryImpl
+    ): AuthRepository
+    
+    @Binds
+    @Singleton
+    abstract fun bindUserRepository(
+        userRepositoryImpl: UserRepositoryImpl
+    ): UserRepository
+    
+    @Binds
+    @Singleton
+    abstract fun bindMessageRepository(
+        messageRepositoryImpl: MessageRepositoryImpl
+    ): MessageRepository
+    
+    @Binds
+    @Singleton
+    abstract fun bindStorageRepository(
+        storageRepositoryImpl: StorageRepositoryImpl
+    ): StorageRepository
+    
+    // Add more repository bindings as they are implemented
 }

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <exclude domain="sharedpref" path="device.xml"/>
-    <exclude domain="sharedpref" path="sensitive_data.xml"/>
+    <!-- Exclude sensitive user data from auto-backup -->
+    <exclude domain="sharedpref" path="user_preferences.xml" />
+    <exclude domain="database" path="onelove_database" />
+    <exclude domain="file" path="images" />
 </full-backup-content>

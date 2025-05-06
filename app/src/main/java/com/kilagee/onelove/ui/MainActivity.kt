@@ -4,48 +4,41 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.WindowCompat
 import androidx.navigation.compose.rememberNavController
-import com.kilagee.onelove.ui.navigation.BottomNavigationBar
 import com.kilagee.onelove.ui.navigation.NavGraph
 import com.kilagee.onelove.ui.theme.OneLoveTheme
 import dagger.hilt.android.AndroidEntryPoint
+import timber.log.Timber
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        // Make the app draw edge-to-edge
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        // Initialize Timber for logging
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        }
+
         setContent {
             OneLoveTheme {
-                // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    OneLoveApp()
+                    val navController = rememberNavController()
+                    NavGraph(navController = navController)
                 }
             }
         }
-    }
-}
-
-@Composable
-fun OneLoveApp() {
-    val navController = rememberNavController()
-    
-    Scaffold(
-        bottomBar = {
-            BottomNavigationBar(navController = navController)
-        }
-    ) { innerPadding ->
-        NavGraph(
-            navController = navController,
-            modifier = Modifier.padding(innerPadding)
-        )
     }
 }

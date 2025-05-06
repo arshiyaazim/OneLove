@@ -1,198 +1,141 @@
 package com.kilagee.onelove.data.model
 
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
-import com.google.firebase.firestore.PropertyName
-import java.util.Date
+import com.google.firebase.firestore.ServerTimestamp
 
 /**
- * Data class representing an AI Profile in the OneLove app
+ * Enum representing AI personality type
+ */
+enum class AIPersonalityType {
+    ROMANTIC, FRIENDLY, ADVENTUROUS, INTELLECTUAL, MYSTERIOUS, PLAYFUL, SERIOUS, CREATIVE, CUSTOM
+}
+
+/**
+ * Enum representing AI availability
+ */
+enum class AIAvailability {
+    FREE, PREMIUM_ONLY, SPECIAL_EVENT, NOT_AVAILABLE
+}
+
+/**
+ * AI Profile data class for Firestore mapping
  */
 data class AIProfile(
     @DocumentId
     val id: String = "",
     
+    // Basic info
     val name: String = "",
-    val age: Int = 0,
-    val gender: Gender = Gender.FEMALE,
-    val country: String = "",
-    val city: String = "",
-    
-    val personalityType: PersonalityType = PersonalityType.ROMANTIC,
-    val personalityTags: List<String> = listOf(),
-    
+    val displayName: String = "",
     val bio: String = "",
-    val interests: List<String> = listOf(),
-    val occupation: String = "",
-    val education: String? = null,
+    val age: Int = 25,
+    val gender: UserGender = UserGender.PREFER_NOT_TO_SAY,
+    val personalityType: AIPersonalityType = AIPersonalityType.FRIENDLY,
+    val interests: List<String> = emptyList(),
+    val location: GeoLocation? = null,
     
-    val photoUrl: String = "",
-    val photoUrls: List<String> = listOf(),
+    // Media
+    val avatarUrl: String = "",
+    val photos: List<String> = emptyList(),
+    val voiceUrl: String? = null,
     
-    val responseStyles: Map<ResponseStyle, Int> = mapOf(),
-    val languageLevel: LanguageLevel = LanguageLevel.NATIVE,
+    // Personality traits
+    val traits: Map<String, Double> = emptyMap(),
+    val personalityDescription: String = "",
+    val backstory: String = "",
     
-    @PropertyName("created_at")
-    val createdAt: Date = Date(),
-    
-    @PropertyName("is_active")
+    // Configuration
+    val availability: AIAvailability = AIAvailability.FREE,
+    val pointsCost: Int = 0,
     val isActive: Boolean = true,
+    val maxMessagesPerDay: Int? = null,
+    val responseDelay: Int = 0, // seconds
     
-    @PropertyName("match_rate")
-    val matchRate: Double = 0.5, // How often this profile is matched with users
+    // Response pattern
+    val conversationStarters: List<String> = emptyList(),
+    val responsePatterns: Map<String, List<String>> = emptyMap(),
+    val responsePrompts: Map<String, String> = emptyMap(),
+    val modelConfig: Map<String, Any> = emptyMap(),
     
-    @PropertyName("message_delay_min")
-    val messageDelayMin: Int = 30, // Minimum seconds to wait before responding
+    // Stats
+    val popularity: Int = 0,
+    val chatsStarted: Int = 0,
+    val messagesSent: Int = 0,
+    val averageRating: Double = 0.0,
     
-    @PropertyName("message_delay_max")
-    val messageDelayMax: Int = 300, // Maximum seconds to wait before responding
+    // Timestamps
+    @ServerTimestamp
+    val createdAt: Timestamp? = null,
     
-    @PropertyName("max_daily_messages")
-    val maxDailyMessages: Int = 50, // Maximum messages this AI can send per day
+    @ServerTimestamp
+    val updatedAt: Timestamp? = null,
     
-    @PropertyName("response_pool_id")
-    val responsePoolId: String = "", // ID of the response pool for this profile
+    // Additional data
+    val metadata: Map<String, Any> = emptyMap()
+) {
+    /**
+     * Check if profile is premium
+     */
+    fun isPremium(): Boolean {
+        return availability == AIAvailability.PREMIUM_ONLY || pointsCost > 0
+    }
     
-    // Additional metadata
-    val height: Int? = null, // Height in cm
-    val relationshipStatus: RelationshipStatus? = null,
-    val drinking: Frequency? = null,
-    val smoking: Frequency? = null,
-    val children: ChildrenStatus? = null,
-    val religion: Religion? = null,
-    val zodiacSign: ZodiacSign? = null,
+    /**
+     * Get a random conversation starter
+     */
+    fun getRandomConversationStarter(): String? {
+        if (conversationStarters.isEmpty()) return null
+        return conversationStarters.random()
+    }
     
-    // Specific AI settings
-    @PropertyName("conversation_depth")
-    val conversationDepth: Int = 2, // How many previous messages to consider for context
+    /**
+     * Get formatted personality type
+     */
+    fun getFormattedPersonalityType(): String {
+        return when (personalityType) {
+            AIPersonalityType.ROMANTIC -> "Romantic"
+            AIPersonalityType.FRIENDLY -> "Friendly"
+            AIPersonalityType.ADVENTUROUS -> "Adventurous"
+            AIPersonalityType.INTELLECTUAL -> "Intellectual"
+            AIPersonalityType.MYSTERIOUS -> "Mysterious"
+            AIPersonalityType.PLAYFUL -> "Playful"
+            AIPersonalityType.SERIOUS -> "Serious"
+            AIPersonalityType.CREATIVE -> "Creative"
+            AIPersonalityType.CUSTOM -> "Custom"
+        }
+    }
     
-    @PropertyName("personality_strength")
-    val personalityStrength: Double = 0.7, // How strongly to maintain the personality (0.0-1.0)
+    /**
+     * Get formatted availability
+     */
+    fun getFormattedAvailability(): String {
+        return when (availability) {
+            AIAvailability.FREE -> "Free"
+            AIAvailability.PREMIUM_ONLY -> "Premium Only"
+            AIAvailability.SPECIAL_EVENT -> "Special Event"
+            AIAvailability.NOT_AVAILABLE -> "Not Available"
+        }
+    }
     
-    @PropertyName("response_variety")
-    val responseVariety: Double = 0.6, // How varied the responses should be (0.0-1.0)
+    /**
+     * Get top three interests
+     */
+    fun getTopInterests(limit: Int = 3): List<String> {
+        return interests.take(limit)
+    }
     
-    @PropertyName("emotional_range")
-    val emotionalRange: Double = 0.5, // How much emotional variation to show (0.0-1.0)
+    /**
+     * Get response pattern for a mood
+     */
+    fun getResponsePattern(mood: String): List<String> {
+        return responsePatterns[mood] ?: responsePatterns["default"] ?: emptyList()
+    }
     
-    @PropertyName("emoji_frequency")
-    val emojiFrequency: Double = 0.3, // How often to use emojis (0.0-1.0)
-    
-    @PropertyName("message_length_min")
-    val messageLengthMin: Int = 10, // Minimum message length in characters
-    
-    @PropertyName("message_length_max")
-    val messageLengthMax: Int = 200 // Maximum message length in characters
-)
-
-/**
- * Personality types for AI profiles
- */
-enum class PersonalityType {
-    ROMANTIC,
-    FLIRTY,
-    INTELLECTUAL,
-    ADVENTUROUS,
-    SHY,
-    CONFIDENT,
-    HUMOROUS,
-    MYSTERIOUS,
-    CARING,
-    CREATIVE,
-    AMBITIOUS,
-    SPIRITUAL,
-    PRACTICAL,
-    OUTGOING,
-    RESERVED
-}
-
-/**
- * Response styles used by AI profiles
- */
-enum class ResponseStyle {
-    FLIRTY,
-    ROMANTIC,
-    HUMOROUS,
-    INTELLECTUAL,
-    SUPPORTIVE,
-    CASUAL,
-    DEEP,
-    PLAYFUL,
-    SERIOUS
-}
-
-/**
- * Language proficiency levels
- */
-enum class LanguageLevel {
-    NATIVE,
-    FLUENT,
-    INTERMEDIATE,
-    BASIC
-}
-
-/**
- * Relationship statuses
- */
-enum class RelationshipStatus {
-    SINGLE,
-    DIVORCED,
-    WIDOWED,
-    SEPARATED,
-    COMPLICATED
-}
-
-/**
- * Frequency options for habits
- */
-enum class Frequency {
-    NEVER,
-    RARELY,
-    SOCIALLY,
-    REGULARLY,
-    FREQUENTLY
-}
-
-/**
- * Children status options
- */
-enum class ChildrenStatus {
-    NO_CHILDREN,
-    HAVE_CHILDREN_NOT_AT_HOME,
-    HAVE_CHILDREN_AT_HOME,
-    WANT_CHILDREN,
-    DONT_WANT_CHILDREN
-}
-
-/**
- * Religion options
- */
-enum class Religion {
-    AGNOSTIC,
-    ATHEIST,
-    BUDDHIST,
-    CHRISTIAN,
-    HINDU,
-    JEWISH,
-    MUSLIM,
-    SPIRITUAL,
-    OTHER,
-    PREFER_NOT_TO_SAY
-}
-
-/**
- * Zodiac sign options
- */
-enum class ZodiacSign {
-    ARIES,
-    TAURUS,
-    GEMINI,
-    CANCER,
-    LEO,
-    VIRGO,
-    LIBRA,
-    SCORPIO,
-    SAGITTARIUS,
-    CAPRICORN,
-    AQUARIUS,
-    PISCES
+    /**
+     * Get prompt for a message type
+     */
+    fun getPrompt(messageType: String): String {
+        return responsePrompts[messageType] ?: responsePrompts["default"] ?: ""
+    }
 }

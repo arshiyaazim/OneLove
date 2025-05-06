@@ -1,300 +1,214 @@
 package com.kilagee.onelove.data.repository
 
 import android.net.Uri
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.UserProfileChangeRequest
-import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.FirebaseStorage
-import com.kilagee.onelove.data.model.MembershipTier
-import com.kilagee.onelove.data.model.OfferSettings
-import com.kilagee.onelove.data.model.PrivacySettings
+import com.kilagee.onelove.data.model.Result
 import com.kilagee.onelove.data.model.User
+import com.kilagee.onelove.data.model.UserGender
 import com.kilagee.onelove.data.model.VerificationStatus
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.tasks.await
-import javax.inject.Inject
-import javax.inject.Singleton
+import java.util.Date
 
-@Singleton
-class UserRepository @Inject constructor(
-    private val auth: FirebaseAuth,
-    private val firestore: FirebaseFirestore,
-    private val storage: FirebaseStorage
-) {
-    private val usersCollection = firestore.collection("users")
+/**
+ * Repository interface for user management
+ */
+interface UserRepository {
     
-    // Authentication functions
-    suspend fun signIn(email: String, password: String): Result<String> {
-        return try {
-            val result = auth.signInWithEmailAndPassword(email, password).await()
-            Result.success(result.user?.uid ?: "")
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Get user by ID
+     * @param userId User ID
+     * @return Result containing the user or error
+     */
+    suspend fun getUserById(userId: String): Result<User>
     
-    suspend fun signUp(
-        email: String,
-        password: String,
-        firstName: String,
-        lastName: String,
-        username: String,
-        age: Int,
-        country: String,
-        location: String,
-        gender: String
-    ): Result<String> {
-        return try {
-            val result = auth.createUserWithEmailAndPassword(email, password).await()
-            val userId = result.user?.uid ?: return Result.failure(Exception("User ID is null"))
-            
-            // Update display name
-            val profileUpdates = UserProfileChangeRequest.Builder()
-                .setDisplayName("$firstName $lastName")
-                .build()
-            
-            auth.currentUser?.updateProfile(profileUpdates)?.await()
-            
-            // Create user in Firestore
-            val user = User(
-                id = userId,
-                email = email,
-                firstName = firstName,
-                lastName = lastName,
-                username = username,
-                age = age,
-                country = country,
-                location = location,
-                gender = gender
-            )
-            
-            usersCollection.document(userId).set(user.toMap()).await()
-            
-            Result.success(userId)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Get user by ID as Flow
+     * @param userId User ID
+     * @return Flow emitting Result containing the user or error
+     */
+    fun getUserByIdFlow(userId: String): Flow<Result<User>>
     
-    suspend fun resetPassword(email: String): Result<Unit> {
-        return try {
-            auth.sendPasswordResetEmail(email).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Create new user profile
+     * @param user User data
+     * @return Result containing the created user ID or error
+     */
+    suspend fun createUser(user: User): Result<String>
     
-    suspend fun signOut(): Result<Unit> {
-        return try {
-            auth.signOut()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Update user profile
+     * @param user User data
+     * @return Result containing the updated user or error
+     */
+    suspend fun updateUser(user: User): Result<User>
     
-    fun getCurrentUser(): User? {
-        val firebaseUser = auth.currentUser ?: return null
-        return User(
-            id = firebaseUser.uid,
-            email = firebaseUser.email ?: "",
-            firstName = firebaseUser.displayName?.split(" ")?.firstOrNull() ?: "",
-            lastName = firebaseUser.displayName?.split(" ")?.lastOrNull() ?: "",
-            profilePictureUrl = firebaseUser.photoUrl?.toString() ?: ""
-        )
-    }
+    /**
+     * Update user profile picture
+     * @param userId User ID
+     * @param imageUri Image URI
+     * @return Result containing the image URL or error
+     */
+    suspend fun updateProfilePicture(userId: String, imageUri: Uri): Result<String>
     
-    fun isUserLoggedIn(): Boolean {
-        return auth.currentUser != null
-    }
+    /**
+     * Update user cover photo
+     * @param userId User ID
+     * @param imageUri Image URI
+     * @return Result containing the image URL or error
+     */
+    suspend fun updateCoverPhoto(userId: String, imageUri: Uri): Result<String>
     
-    // User profile functions
-    suspend fun getUserById(userId: String): Result<User> {
-        return try {
-            val document = usersCollection.document(userId).get().await()
-            val user = document.toObject(User::class.java) ?: 
-                return Result.failure(Exception("User not found"))
-            Result.success(user)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Upload user photo to gallery
+     * @param userId User ID
+     * @param imageUri Image URI
+     * @return Result containing the image URL or error
+     */
+    suspend fun uploadUserPhoto(userId: String, imageUri: Uri): Result<String>
     
-    suspend fun updateUserProfile(user: User): Result<Unit> {
-        return try {
-            usersCollection.document(user.id).set(user.toMap()).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Delete user photo from gallery
+     * @param userId User ID
+     * @param photoUrl Photo URL
+     * @return Result indicating success or error
+     */
+    suspend fun deleteUserPhoto(userId: String, photoUrl: String): Result<Unit>
     
-    suspend fun uploadProfilePicture(userId: String, imageUri: Uri): Result<String> {
-        return try {
-            val storageRef = storage.reference.child("profile_pictures/$userId")
-            val uploadTask = storageRef.putFile(imageUri).await()
-            val downloadUrl = storageRef.downloadUrl.await().toString()
-            
-            // Update user document with new profile picture URL
-            usersCollection.document(userId)
-                .update("profilePictureUrl", downloadUrl)
-                .await()
-                
-            Result.success(downloadUrl)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Upload verification documents
+     * @param userId User ID
+     * @param documentUris List of document URIs
+     * @return Result containing the document URLs or error
+     */
+    suspend fun uploadVerificationDocuments(userId: String, documentUris: List<Uri>): Result<List<String>>
     
-    suspend fun uploadIdDocument(userId: String, imageUri: Uri): Result<String> {
-        return try {
-            val storageRef = storage.reference.child("id_documents/$userId")
-            val uploadTask = storageRef.putFile(imageUri).await()
-            val downloadUrl = storageRef.downloadUrl.await().toString()
-            
-            // Update user document with new ID document URL
-            usersCollection.document(userId)
-                .update("idDocumentUrl", downloadUrl)
-                .await()
-                
-            Result.success(downloadUrl)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Update user verification status
+     * @param userId User ID
+     * @param status Verification status
+     * @return Result indicating success or error
+     */
+    suspend fun updateVerificationStatus(userId: String, status: VerificationStatus): Result<Unit>
     
-    suspend fun updateVerificationStatus(userId: String, status: VerificationStatus): Result<Unit> {
-        return try {
-            usersCollection.document(userId)
-                .update("verificationStatus", status.name)
-                .await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Update user online status
+     * @param userId User ID
+     * @param isOnline Online status
+     * @return Result indicating success or error
+     */
+    suspend fun updateOnlineStatus(userId: String, isOnline: Boolean): Result<Unit>
     
-    suspend fun updateMembershipTier(userId: String, tier: MembershipTier): Result<Unit> {
-        return try {
-            usersCollection.document(userId)
-                .update("membershipTier", tier.name)
-                .await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Update user last active timestamp
+     * @param userId User ID
+     * @param lastActive Last active timestamp
+     * @return Result indicating success or error
+     */
+    suspend fun updateLastActive(userId: String, lastActive: Date): Result<Unit>
     
-    suspend fun updatePrivacySettings(userId: String, settings: PrivacySettings): Result<Unit> {
-        return try {
-            usersCollection.document(userId)
-                .update("privacySettings", settings.toMap())
-                .await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Update user FCM token
+     * @param userId User ID
+     * @param token FCM token
+     * @return Result indicating success or error
+     */
+    suspend fun updateFcmToken(userId: String, token: String): Result<Unit>
     
-    suspend fun updateOfferSettings(userId: String, settings: OfferSettings): Result<Unit> {
-        return try {
-            usersCollection.document(userId)
-                .update("offerSettings", settings.toMap())
-                .await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Block user
+     * @param userId Current user ID
+     * @param blockedUserId User ID to block
+     * @return Result indicating success or error
+     */
+    suspend fun blockUser(userId: String, blockedUserId: String): Result<Unit>
     
-    suspend fun addPoints(userId: String, points: Int): Result<Int> {
-        return try {
-            val userDoc = usersCollection.document(userId).get().await()
-            val currentPoints = userDoc.getLong("points")?.toInt() ?: 0
-            val newPoints = currentPoints + points
-            
-            usersCollection.document(userId)
-                .update("points", newPoints)
-                .await()
-                
-            Result.success(newPoints)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    /**
+     * Unblock user
+     * @param userId Current user ID
+     * @param unblockedUserId User ID to unblock
+     * @return Result indicating success or error
+     */
+    suspend fun unblockUser(userId: String, unblockedUserId: String): Result<Unit>
     
-    suspend fun getUserSuggestions(
-        currentUserId: String,
-        limit: Int = 10,
-        country: String? = null,
-        minAge: Int? = null,
-        maxAge: Int? = null,
-        gender: String? = null,
-        interests: List<String>? = null
-    ): Flow<Result<List<User>>> = flow {
-        try {
-            var query = usersCollection
-                .whereNotEqualTo("id", currentUserId)
-                .whereEqualTo("privacySettings.showInDiscovery", true)
-                
-            // Apply filters if provided
-            if (country != null) {
-                query = query.whereEqualTo("country", country)
-            }
-            
-            if (gender != null) {
-                query = query.whereEqualTo("gender", gender)
-            }
-            
-            // Get users
-            val result = query.limit(limit.toLong()).get().await()
-            
-            // Convert to User objects
-            val users = result.documents.mapNotNull { doc ->
-                doc.toObject(User::class.java)
-            }
-            
-            // Apply age filter if provided
-            var filteredUsers = users
-            if (minAge != null || maxAge != null) {
-                filteredUsers = users.filter { user ->
-                    (minAge == null || user.age >= minAge) && 
-                    (maxAge == null || user.age <= maxAge)
-                }
-            }
-            
-            // Apply interests filter if provided
-            if (!interests.isNullOrEmpty()) {
-                filteredUsers = filteredUsers.filter { user ->
-                    user.interests.any { it in interests }
-                }
-            }
-            
-            emit(Result.success(filteredUsers))
-        } catch (e: Exception) {
-            emit(Result.failure(e))
-        }
-    }
+    /**
+     * Get blocked users
+     * @param userId User ID
+     * @return Result containing list of blocked user IDs or error
+     */
+    suspend fun getBlockedUsers(userId: String): Result<List<String>>
     
-    suspend fun searchUsers(query: String, limit: Int = 10): Flow<Result<List<User>>> = flow {
-        try {
-            val result = usersCollection
-                .orderBy("username")
-                .startAt(query)
-                .endAt(query + "\uf8ff")
-                .limit(limit.toLong())
-                .get()
-                .await()
-                
-            val users = result.documents.mapNotNull { doc ->
-                doc.toObject(User::class.java)
-            }
-            
-            emit(Result.success(users))
-        } catch (e: Exception) {
-            emit(Result.failure(e))
-        }
-    }
+    /**
+     * Search users by query
+     * @param query Search query
+     * @param limit Maximum number of results
+     * @return Result containing list of users or error
+     */
+    suspend fun searchUsers(query: String, limit: Int = 20): Result<List<User>>
+    
+    /**
+     * Get suggested users based on preferences
+     * @param userId Current user ID
+     * @param limit Maximum number of results
+     * @return Result containing list of suggested users or error
+     */
+    suspend fun getSuggestedUsers(userId: String, limit: Int = 20): Result<List<User>>
+    
+    /**
+     * Update user gender
+     * @param userId User ID
+     * @param gender Gender
+     * @return Result indicating success or error
+     */
+    suspend fun updateGender(userId: String, gender: UserGender): Result<Unit>
+    
+    /**
+     * Update user gender preferences
+     * @param userId User ID
+     * @param preferences List of preferred genders
+     * @return Result indicating success or error
+     */
+    suspend fun updateGenderPreferences(userId: String, preferences: List<UserGender>): Result<Unit>
+    
+    /**
+     * Update user interests
+     * @param userId User ID
+     * @param interests List of interests
+     * @return Result indicating success or error
+     */
+    suspend fun updateInterests(userId: String, interests: List<String>): Result<Unit>
+    
+    /**
+     * Add points to user
+     * @param userId User ID
+     * @param points Points to add
+     * @return Result containing updated point total or error
+     */
+    suspend fun addPoints(userId: String, points: Int): Result<Int>
+    
+    /**
+     * Subtract points from user
+     * @param userId User ID
+     * @param points Points to subtract
+     * @return Result containing updated point total or error
+     */
+    suspend fun subtractPoints(userId: String, points: Int): Result<Int>
+    
+    /**
+     * Get all verified users
+     * @param limit Maximum number of results
+     * @return Result containing list of verified users or error
+     */
+    suspend fun getVerifiedUsers(limit: Int = 50): Result<List<User>>
+    
+    /**
+     * Get all admin users
+     * @return Result containing list of admin users or error
+     */
+    suspend fun getAdminUsers(): Result<List<User>>
+    
+    /**
+     * Delete user account
+     * @param userId User ID
+     * @return Result indicating success or error
+     */
+    suspend fun deleteUserAccount(userId: String): Result<Unit>
 }

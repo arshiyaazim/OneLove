@@ -1,119 +1,107 @@
 package com.kilagee.onelove.data.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-import androidx.room.ColumnInfo
-import androidx.room.ForeignKey
-import java.util.Date
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.ServerTimestamp
 
-@Entity(
-    tableName = "messages",
-    foreignKeys = [
-        ForeignKey(
-            entity = User::class,
-            parentColumns = ["id"],
-            childColumns = ["sender_id"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = User::class,
-            parentColumns = ["id"],
-            childColumns = ["receiver_id"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ]
-)
-data class Message(
-    @PrimaryKey
-    val id: String,
-    
-    @ColumnInfo(name = "chat_id")
-    val chatId: String,
-    
-    @ColumnInfo(name = "sender_id")
-    val senderId: String,
-    
-    @ColumnInfo(name = "receiver_id")
-    val receiverId: String,
-    
-    @ColumnInfo(name = "content")
-    val content: String,
-    
-    @ColumnInfo(name = "media_url")
-    val mediaUrl: String? = null,
-    
-    @ColumnInfo(name = "media_type")
-    val mediaType: MediaType? = null,
-    
-    @ColumnInfo(name = "sent_at")
-    val sentAt: Date = Date(),
-    
-    @ColumnInfo(name = "read_at")
-    val readAt: Date? = null,
-    
-    @ColumnInfo(name = "is_deleted")
-    val isDeleted: Boolean = false,
-    
-    @ColumnInfo(name = "is_edited")
-    val isEdited: Boolean = false,
-    
-    @ColumnInfo(name = "message_type")
-    val messageType: MessageType = MessageType.TEXT
-)
-
+/**
+ * Enum representing the type of message
+ */
 enum class MessageType {
-    TEXT,
-    IMAGE,
-    VIDEO,
-    AUDIO,
-    FILE,
-    LOCATION,
-    OFFER,
-    SYSTEM
+    TEXT, IMAGE, VIDEO, AUDIO, FILE, LOCATION, CONTACT, OFFER, SYSTEM, AI
 }
 
-@Entity(
-    tableName = "chats",
-    foreignKeys = [
-        ForeignKey(
-            entity = User::class,
-            parentColumns = ["id"],
-            childColumns = ["user1_id"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = User::class,
-            parentColumns = ["id"],
-            childColumns = ["user2_id"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ]
-)
-data class Chat(
-    @PrimaryKey
-    val id: String,
+/**
+ * Message data class for Firestore mapping
+ */
+data class Message(
+    @DocumentId
+    val id: String = "",
     
-    @ColumnInfo(name = "user1_id")
-    val user1Id: String,
+    // Chat and participant info
+    val chatId: String = "",
+    val senderId: String = "",
+    val receiverId: String = "",
+    val senderName: String = "",
+    val senderPhotoUrl: String? = null,
     
-    @ColumnInfo(name = "user2_id")
-    val user2Id: String,
+    // Message content
+    val content: String = "",
+    val messageType: MessageType = MessageType.TEXT,
+    val mediaUrl: String? = null,
+    val mediaThumbnail: String? = null,
+    val mediaWidth: Int? = null,
+    val mediaHeight: Int? = null,
+    val mediaDuration: Long? = null, // For audio/video
+    val mediaSize: Long? = null,
     
-    @ColumnInfo(name = "last_message_id")
-    val lastMessageId: String? = null,
+    // Reference data
+    val replyToMessageId: String? = null,
+    val referenceData: Map<String, Any>? = null,
     
-    @ColumnInfo(name = "last_active_time")
-    val lastActiveTime: Date = Date(),
+    // Status flags
+    val isRead: Boolean = false,
+    val isDelivered: Boolean = false,
+    val isSending: Boolean = false,
+    val isDeleted: Boolean = false,
+    val isEdited: Boolean = false,
+    val isAI: Boolean = false,
     
-    @ColumnInfo(name = "unread_count")
-    val unreadCount: Int = 0,
+    // Timestamps
+    @ServerTimestamp
+    val createdAt: Timestamp? = null,
     
-    @ColumnInfo(name = "is_blocked")
-    val isBlocked: Boolean = false,
+    @ServerTimestamp
+    val updatedAt: Timestamp? = null,
     
-    @ColumnInfo(name = "is_muted")
-    val isMuted: Boolean = false,
+    val readAt: Timestamp? = null,
+    val deliveredAt: Timestamp? = null,
     
-    @ColumnInfo(name = "created_at")
-    val createdAt: Date = Date()
-)
+    // Additional data
+    val metadata: Map<String, Any> = emptyMap()
+) {
+    /**
+     * Check if message has media
+     */
+    fun hasMedia(): Boolean {
+        return messageType in listOf(
+            MessageType.IMAGE, MessageType.VIDEO, MessageType.AUDIO, MessageType.FILE
+        ) && !mediaUrl.isNullOrEmpty()
+    }
+    
+    /**
+     * Get formatted timestamp
+     */
+    fun getFormattedTime(): String {
+        val date = createdAt?.toDate() ?: return ""
+        val calendar = java.util.Calendar.getInstance()
+        calendar.time = date
+        
+        val hours = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+        val minutes = calendar.get(java.util.Calendar.MINUTE)
+        
+        return String.format("%02d:%02d", hours, minutes)
+    }
+    
+    /**
+     * Get shortened content preview
+     */
+    fun getContentPreview(maxLength: Int = 50): String {
+        return when {
+            content.isEmpty() -> when (messageType) {
+                MessageType.IMAGE -> "📷 Image"
+                MessageType.VIDEO -> "🎬 Video"
+                MessageType.AUDIO -> "🎵 Audio"
+                MessageType.FILE -> "📁 File"
+                MessageType.LOCATION -> "📍 Location"
+                MessageType.CONTACT -> "👤 Contact"
+                MessageType.OFFER -> "🎁 Offer"
+                MessageType.SYSTEM -> "System Message"
+                MessageType.AI -> "AI Message"
+                else -> ""
+            }
+            content.length <= maxLength -> content
+            else -> "${content.take(maxLength)}..."
+        }
+    }
+}

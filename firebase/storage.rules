@@ -1,0 +1,118 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+    
+    // Check if user is not banned
+    function isNotBanned() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.isBanned == false || 
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.isBanned == null;
+    }
+    
+    // Check if the user is an admin
+    function isAdmin() {
+      return isAuth() && exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+    
+    // Check if the user has a specific admin permission
+    function hasPermission(permission) {
+      let admin = firestore.get(/databases/(default)/documents/admins/$(request.auth.uid));
+      return admin.data.role == 'SUPER_ADMIN' || admin.data.permissions.hasAny([permission]);
+    }
+    
+    // Profile images
+    match /profile_images/{userId}/{fileName} {
+      // Users can read any profile image
+      allow read: if isAuth() && isNotBanned();
+      
+      // Users can only upload to their own folder
+      allow write: if isAuth() && isNotBanned() && request.auth.uid == userId &&
+                    // Validate file size and content type
+                    request.resource.size <= 5 * 1024 * 1024 &&
+                    request.resource.contentType.matches('image/.*');
+    }
+    
+    // Verification documents
+    match /verification/{userId}/{fileName} {
+      // Only the user and admins can read verification documents
+      allow read: if isAuth() && (
+        request.auth.uid == userId && isNotBanned() || 
+        isAdmin() && hasPermission('APPROVE_VERIFICATION')
+      );
+      
+      // Users can only upload their own verification documents
+      allow create: if isAuth() && isNotBanned() && request.auth.uid == userId &&
+                     // Validate file size and content type
+                     request.resource.size <= 10 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*|application/pdf');
+      
+      // Only admins can delete verification documents
+      allow delete: if isAdmin() && hasPermission('APPROVE_VERIFICATION');
+      
+      // No updates to existing documents
+      allow update: if false;
+    }
+    
+    // Chat media
+    match /chat_media/{chatId}/{fileName} {
+      // Only participants can read chat media
+      allow read: if isAuth() && isNotBanned() && 
+                   firestore.get(/databases/(default)/documents/chats/$(chatId)).data.participants[request.auth.uid] == true;
+      
+      // Only participants can upload chat media
+      allow create: if isAuth() && isNotBanned() && 
+                     firestore.get(/databases/(default)/documents/chats/$(chatId)).data.participants[request.auth.uid] == true &&
+                     // Validate file size and content type
+                     request.resource.size <= 20 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*|video/.*|audio/.*');
+      
+      // No updates to chat media
+      allow update: if false;
+      
+      // Only admins can delete chat media
+      allow delete: if isAdmin() && hasPermission('REMOVE_CONTENT');
+    }
+    
+    // Payment proof files
+    match /payment_proof/{userId}/{fileName} {
+      // Only the user and admins can read payment proof
+      allow read: if isAuth() && (
+        request.auth.uid == userId && isNotBanned() || 
+        isAdmin() && hasPermission('MANAGE_SUBSCRIPTIONS')
+      );
+      
+      // Users can upload their own payment proof
+      allow create: if isAuth() && isNotBanned() && request.auth.uid == userId &&
+                     // Validate file size and content type
+                     request.resource.size <= 10 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*|application/pdf');
+      
+      // No updates to payment proof
+      allow update: if false;
+      
+      // Only admins can delete payment proof
+      allow delete: if isAdmin() && hasPermission('MANAGE_SUBSCRIPTIONS');
+    }
+    
+    // AI profile photos
+    match /ai_profiles/{fileName} {
+      // All users can read AI profile photos
+      allow read: if isAuth() && isNotBanned();
+      
+      // Only admins can upload or delete AI profile photos
+      allow write: if isAdmin() && hasPermission('MANAGE_AI_PROFILES');
+    }
+    
+    // System notification images
+    match /notifications/{fileName} {
+      // All users can read notification images
+      allow read: if isAuth() && isNotBanned();
+      
+      // Only admins can upload or delete notification images
+      allow write: if isAdmin() && hasPermission('SEND_NOTIFICATIONS');
+    }
+  }
+}

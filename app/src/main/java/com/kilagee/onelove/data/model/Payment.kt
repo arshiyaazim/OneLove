@@ -1,85 +1,153 @@
 package com.kilagee.onelove.data.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
-import com.kilagee.onelove.data.database.converter.DateConverter
-import java.util.Date
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.ServerTimestamp
 
 /**
- * Enum for payment status
+ * Enum representing payment status
  */
 enum class PaymentStatus {
-    PENDING,       // Payment is initiated but not completed
-    SUCCEEDED,     // Payment was successful
-    FAILED,        // Payment failed
-    REFUNDED       // Payment was refunded
+    PENDING, SUCCEEDED, FAILED, REFUNDED, CANCELED
 }
 
 /**
- * Enum for payment type
+ * Enum representing payment type
  */
 enum class PaymentType {
-    SUBSCRIPTION,  // Payment for subscription
-    ONE_TIME,      // One-time purchase (e.g., coins, boost)
-    OFFER,         // Payment for an offer
-    REFUND         // Refund transaction
+    SUBSCRIPTION, POINTS, FEATURE, OFFER, GIFT, OTHER
 }
 
 /**
- * Entity class for payments
+ * Payment data class for Firestore mapping
  */
-@Entity(tableName = "payments")
-@TypeConverters(DateConverter::class)
 data class Payment(
-    @PrimaryKey
-    val id: String,
+    @DocumentId
+    val id: String = "",
     
-    // User who made the payment
-    val userId: String,
+    // User info
+    val userId: String = "",
+    val userEmail: String? = null,
     
-    // Amount in USD
-    val amountUsd: Double,
+    // Payment details
+    val amount: Double = 0.0,
+    val currency: String = "USD",
+    val status: PaymentStatus = PaymentStatus.PENDING,
+    val paymentType: PaymentType = PaymentType.OTHER,
+    val description: String = "",
     
-    // Amount in local currency
-    val amountLocal: Double,
+    // Provider info
+    val provider: PaymentProvider = PaymentProvider.STRIPE,
+    val paymentIntentId: String? = null,
+    val paymentMethodId: String? = null,
+    val customerId: String? = null,
+    val invoiceId: String? = null,
+    val receiptUrl: String? = null,
+    val chargeId: String? = null,
     
-    // Currency code (e.g., USD, EUR)
-    val currency: String,
+    // Related entities
+    val subscriptionId: String? = null,
+    val offerId: String? = null,
+    val pointsAmount: Int? = null,
+    val featureId: String? = null,
     
-    // Payment status
-    val status: PaymentStatus,
+    // Timestamps
+    @ServerTimestamp
+    val createdAt: Timestamp? = null,
     
-    // Payment type
-    val type: PaymentType,
+    val processedAt: Timestamp? = null,
+    val refundedAt: Timestamp? = null,
+    val canceledAt: Timestamp? = null,
     
-    // Payment provider
-    val provider: PaymentProvider,
+    // Additional info
+    val notes: String? = null,
+    val errorMessage: String? = null,
+    val metadata: Map<String, Any> = emptyMap()
+) {
+    /**
+     * Check if payment is pending
+     */
+    fun isPending(): Boolean {
+        return status == PaymentStatus.PENDING
+    }
     
-    // Provider's payment ID
-    val providerPaymentId: String,
+    /**
+     * Check if payment succeeded
+     */
+    fun isSuccessful(): Boolean {
+        return status == PaymentStatus.SUCCEEDED
+    }
     
-    // Provider's transaction ID
-    val providerTransactionId: String?,
+    /**
+     * Check if payment failed
+     */
+    fun isFailed(): Boolean {
+        return status == PaymentStatus.FAILED
+    }
     
-    // Subscription ID if this payment is for a subscription
-    val subscriptionId: String?,
+    /**
+     * Get formatted amount
+     */
+    fun getFormattedAmount(): String {
+        val currencySymbol = when (currency) {
+            "USD" -> "$"
+            "EUR" -> "€"
+            "GBP" -> "£"
+            "JPY" -> "¥"
+            else -> currency
+        }
+        
+        val amountString = if (currency == "JPY") {
+            amount.toInt().toString()
+        } else {
+            String.format("%.2f", amount)
+        }
+        
+        return "$currencySymbol$amountString"
+    }
     
-    // Offer ID if this payment is for an offer
-    val offerId: String?,
+    /**
+     * Get formatted status
+     */
+    fun getFormattedStatus(): String {
+        return when (status) {
+            PaymentStatus.PENDING -> "Pending"
+            PaymentStatus.SUCCEEDED -> "Successful"
+            PaymentStatus.FAILED -> "Failed"
+            PaymentStatus.REFUNDED -> "Refunded"
+            PaymentStatus.CANCELED -> "Canceled"
+        }
+    }
     
-    // Whether the payment requires additional action from the user
-    val requiresAction: Boolean,
+    /**
+     * Get formatted payment type
+     */
+    fun getFormattedPaymentType(): String {
+        return when (paymentType) {
+            PaymentType.SUBSCRIPTION -> "Subscription"
+            PaymentType.POINTS -> "Points Purchase"
+            PaymentType.FEATURE -> "Feature Unlock"
+            PaymentType.OFFER -> "Offer Purchase"
+            PaymentType.GIFT -> "Gift"
+            PaymentType.OTHER -> "Other"
+        }
+    }
     
-    // URL for additional actions (e.g., 3D Secure)
-    val actionUrl: String?,
+    /**
+     * Get formatted date
+     */
+    fun getFormattedDate(): String {
+        val date = createdAt?.toDate() ?: return ""
+        val formatter = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
+        return formatter.format(date)
+    }
     
-    // Receipt URL or ID
-    val receiptUrl: String?,
-    
-    // Creation timestamp
-    val createdAt: Date,
-    
-    // Last updated timestamp
-    val updatedAt: Date
-)
+    /**
+     * Get formatted time
+     */
+    fun getFormattedTime(): String {
+        val date = createdAt?.toDate() ?: return ""
+        val formatter = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
+        return formatter.format(date)
+    }
+}

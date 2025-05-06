@@ -10,42 +10,68 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// OneLove primary color palette
-val PrimaryPurple = Color(0xFF6A1B9A)
-val PrimaryVariant = Color(0xFF9C27B0)
-val SecondaryPink = Color(0xFFE91E63)
-val BackgroundLight = Color(0xFFF8F8F8)
-val BackgroundDark = Color(0xFF121212)
-val Surface = Color(0xFFFFFFFF)
-val Error = Color(0xFFB00020)
-
-private val LightColors = lightColorScheme(
-    primary = PrimaryPurple,
-    secondary = SecondaryPink,
+private val LightColorScheme = lightColorScheme(
+    primary = PrimaryLight,
+    onPrimary = BackgroundLight,
+    primaryContainer = PrimaryContainer,
+    onPrimaryContainer = OnPrimaryContainer,
+    secondary = SecondaryLight,
+    onSecondary = BackgroundLight,
+    secondaryContainer = SecondaryContainer,
+    onSecondaryContainer = OnSecondaryContainer,
+    tertiary = TertiaryLight,
+    onTertiary = BackgroundLight,
+    tertiaryContainer = TertiaryContainer,
+    onTertiaryContainer = OnTertiaryContainer,
+    error = ErrorColor,
+    onError = OnErrorLight,
+    errorContainer = ErrorContainerLight,
+    onErrorContainer = ErrorColor,
     background = BackgroundLight,
-    surface = Surface,
-    error = Error
+    onBackground = OnSurfaceLight,
+    surface = SurfaceLight,
+    onSurface = OnSurfaceLight,
+    surfaceVariant = SurfaceLight.copy(alpha = 0.7f),
+    onSurfaceVariant = OnSurfaceLight.copy(alpha = 0.7f),
+    outline = OnSurfaceLight.copy(alpha = 0.5f)
 )
 
-private val DarkColors = darkColorScheme(
-    primary = PrimaryVariant,
-    secondary = SecondaryPink,
+private val DarkColorScheme = darkColorScheme(
+    primary = PrimaryDark,
+    onPrimary = BackgroundDark,
+    primaryContainer = OnPrimaryContainer.copy(alpha = 0.7f),
+    onPrimaryContainer = PrimaryContainer,
+    secondary = SecondaryDark,
+    onSecondary = BackgroundDark,
+    secondaryContainer = OnSecondaryContainer.copy(alpha = 0.7f),
+    onSecondaryContainer = SecondaryContainer,
+    tertiary = TertiaryDark,
+    onTertiary = BackgroundDark,
+    tertiaryContainer = OnTertiaryContainer.copy(alpha = 0.7f),
+    onTertiaryContainer = TertiaryContainer,
+    error = ErrorColor,
+    onError = OnErrorDark,
+    errorContainer = ErrorContainerDark,
+    onErrorContainer = ErrorContainerLight,
     background = BackgroundDark,
-    surface = Color(0xFF1E1E1E),
-    error = Error
+    onBackground = OnSurfaceDark,
+    surface = SurfaceDark,
+    onSurface = OnSurfaceDark,
+    surfaceVariant = SurfaceDark.copy(alpha = 0.7f),
+    onSurfaceVariant = OnSurfaceDark.copy(alpha = 0.7f),
+    outline = OnSurfaceDark.copy(alpha = 0.5f)
 )
 
 @Composable
 fun OneLoveTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -53,10 +79,9 @@ fun OneLoveTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColors
-        else -> LightColors
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
     }
-    
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {

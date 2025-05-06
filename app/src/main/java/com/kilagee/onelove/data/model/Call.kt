@@ -1,74 +1,152 @@
 package com.kilagee.onelove.data.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
-import com.kilagee.onelove.data.database.converter.DateConverter
-import com.kilagee.onelove.data.database.converter.ListConverter
-import java.util.Date
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.ServerTimestamp
 
 /**
- * Enum for call types
+ * Enum representing call type
  */
 enum class CallType {
-    AUDIO,  // Voice-only calls
-    VIDEO   // Video calls with audio
+    AUDIO, VIDEO
 }
 
 /**
- * Enum for call status
+ * Enum representing call status
  */
 enum class CallStatus {
-    INITIATED,  // Call has been created but not yet established
-    ONGOING,    // Call is currently active
-    MISSED,     // Call was not answered
-    DECLINED,   // Call was declined by receiver
-    ENDED,      // Call was ended normally
-    FAILED      // Call failed due to technical issues
+    INITIATED, RINGING, ONGOING, ENDED, MISSED, REJECTED, FAILED
 }
 
 /**
- * Entity class for calls
+ * Call data class for Firestore mapping
  */
-@Entity(tableName = "calls")
-@TypeConverters(DateConverter::class, ListConverter::class)
 data class Call(
-    @PrimaryKey
-    val id: String,
+    @DocumentId
+    val id: String = "",
     
-    // User who initiated the call
-    val callerId: String,
+    // Participants
+    val callerId: String = "",
+    val receiverId: String = "",
+    val callerName: String = "",
+    val receiverName: String = "",
+    val callerPhotoUrl: String? = null,
+    val receiverPhotoUrl: String? = null,
     
-    // User receiving the call (empty for group calls)
-    val receiverId: String,
+    // Call details
+    val callType: CallType = CallType.AUDIO,
+    val status: CallStatus = CallStatus.INITIATED,
+    val duration: Long = 0, // in seconds
+    val quality: Int = 0, // 0-5 rating
     
-    // Type of call (audio/video)
-    val type: CallType,
+    // Technical details
+    val channelId: String = "",
+    val token: String? = null,
+    val signalProvider: String = "agora", // or "twilio", etc.
+    val serverRegion: String? = null,
+    val connectConfig: Map<String, Any> = emptyMap(),
     
-    // Current status of the call
-    val status: CallStatus,
+    // Timestamps
+    @ServerTimestamp
+    val startedAt: Timestamp? = null,
     
-    // When the call was answered (null if not answered)
-    val startTime: Date?,
+    val endedAt: Timestamp? = null,
+    val answeredAt: Timestamp? = null,
     
-    // When the call ended (null if not ended)
-    val endTime: Date?,
+    // Recording
+    val isRecorded: Boolean = false,
+    val recordingUrl: String? = null,
     
-    // Duration in seconds (null if not ended)
-    val duration: Long?,
+    // Related entities
+    val matchId: String? = null,
+    val chatId: String? = null,
+    val offerId: String? = null,
     
-    // Agora channel name for RTC
-    val channelName: String,
+    // Costs
+    val pointsCost: Int = 0,
+    val pointsCharged: Boolean = false,
     
-    // RTC token ID
-    val tokenId: String?,
+    // Additional data
+    val metadata: Map<String, Any> = emptyMap()
+) {
+    /**
+     * Check if call is active
+     */
+    fun isActive(): Boolean {
+        return status == CallStatus.INITIATED || 
+               status == CallStatus.RINGING || 
+               status == CallStatus.ONGOING
+    }
     
-    // Creation timestamp
-    val createdAt: Date,
+    /**
+     * Check if call was completed successfully
+     */
+    fun isCompleted(): Boolean {
+        return status == CallStatus.ENDED && duration > 0
+    }
     
-    // Is this a group call
-    val isGroupCall: Boolean = false,
+    /**
+     * Check if call was missed
+     */
+    fun isMissed(): Boolean {
+        return status == CallStatus.MISSED || 
+               (status == CallStatus.ENDED && duration == 0L)
+    }
     
-    // List of participant IDs for group calls
-    val participants: List<String> = emptyList()
-)
+    /**
+     * Get formatted call type
+     */
+    fun getFormattedCallType(): String {
+        return when (callType) {
+            CallType.AUDIO -> "Audio Call"
+            CallType.VIDEO -> "Video Call"
+        }
+    }
+    
+    /**
+     * Get formatted call status
+     */
+    fun getFormattedStatus(): String {
+        return when (status) {
+            CallStatus.INITIATED -> "Calling..."
+            CallStatus.RINGING -> "Ringing..."
+            CallStatus.ONGOING -> "Ongoing"
+            CallStatus.ENDED -> "Ended"
+            CallStatus.MISSED -> "Missed"
+            CallStatus.REJECTED -> "Rejected"
+            CallStatus.FAILED -> "Failed"
+        }
+    }
+    
+    /**
+     * Get formatted duration
+     */
+    fun getFormattedDuration(): String {
+        val hours = duration / 3600
+        val minutes = (duration % 3600) / 60
+        val seconds = duration % 60
+        
+        return when {
+            hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
+            else -> String.format("%02d:%02d", minutes, seconds)
+        }
+    }
+    
+    /**
+     * Get formatted timestamp
+     */
+    fun getFormattedTime(): String {
+        val date = startedAt?.toDate() ?: return ""
+        val formatter = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
+        return formatter.format(date)
+    }
+    
+    /**
+     * Get formatted date
+     */
+    fun getFormattedDate(): String {
+        val date = startedAt?.toDate() ?: return ""
+        val formatter = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
+        return formatter.format(date)
+    }
+}

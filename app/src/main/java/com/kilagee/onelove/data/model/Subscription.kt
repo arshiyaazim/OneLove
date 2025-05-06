@@ -1,86 +1,173 @@
 package com.kilagee.onelove.data.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
-import com.kilagee.onelove.data.database.converter.DateConverter
-import java.util.Date
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.ServerTimestamp
 
 /**
- * Enum for subscription types
- */
-enum class SubscriptionType {
-    BASIC,          // Free tier
-    BOOST,          // Profile boosting to get more visibility
-    UNLIMITED,      // Unlimited offers and interactions
-    PREMIUM         // All features included
-}
-
-/**
- * Enum for subscription status
+ * Enum representing subscription status
  */
 enum class SubscriptionStatus {
-    ACTIVE,         // Currently active subscription
-    CANCELED,       // Will be canceled at the end of the billing period
-    EXPIRED,        // No longer active
-    PENDING         // Payment pending
+    ACTIVE, CANCELED, EXPIRED, PAST_DUE, UNPAID, TRIALING
 }
 
 /**
- * Enum for payment provider
+ * Enum representing payment provider
  */
 enum class PaymentProvider {
-    STRIPE,
-    RAZORPAY,
-    BKASH,
-    GOOGLE_PAY
+    STRIPE, GOOGLE_PAY, APPLE_PAY, PAYPAL, MANUAL
 }
 
 /**
- * Entity class for subscriptions
+ * Subscription data class for Firestore mapping
  */
-@Entity(tableName = "subscriptions")
-@TypeConverters(DateConverter::class)
 data class Subscription(
-    @PrimaryKey
-    val id: String,
+    @DocumentId
+    val id: String = "",
     
-    // User who owns this subscription
-    val userId: String,
+    // User info
+    val userId: String = "",
+    val userEmail: String = "",
     
-    // Type of subscription
-    val type: SubscriptionType,
+    // Subscription details
+    val name: String = "",
+    val description: String = "",
+    val tier: SubscriptionTier = SubscriptionTier.FREE,
+    val status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
+    val priceId: String = "",
+    val price: Double = 0.0,
+    val currency: String = "USD",
+    val interval: String = "month", // "month", "year", "week", "day"
+    val intervalCount: Int = 1,
     
-    // Current status
-    val status: SubscriptionStatus,
+    // Dates
+    val startDate: Timestamp? = null,
+    val endDate: Timestamp? = null,
+    val trialStart: Timestamp? = null,
+    val trialEnd: Timestamp? = null,
+    val canceledAt: Timestamp? = null,
+    val currentPeriodStart: Timestamp? = null,
+    val currentPeriodEnd: Timestamp? = null,
     
-    // Payment provider used
-    val paymentProvider: PaymentProvider,
+    // Renewal settings
+    val autoRenew: Boolean = true,
+    val cancelAtPeriodEnd: Boolean = false,
     
-    // Payment provider's subscription ID for recurring billing
-    val providerSubscriptionId: String?,
+    // Payment info
+    val customerId: String = "",
+    val paymentMethodId: String? = null,
+    val paymentProvider: PaymentProvider = PaymentProvider.STRIPE,
+    val externalId: String? = null, // Stripe subscription ID, etc.
+    val latestInvoiceId: String? = null,
+    val latestReceiptUrl: String? = null,
     
-    // Monthly price in USD
-    val priceUsd: Double,
+    // Features
+    val features: List<String> = emptyList(),
+    val quotaLimits: Map<String, Int> = emptyMap(),
+    val pointsIncluded: Int = 0,
     
-    // Start date of the subscription
-    val startDate: Date,
+    // Metadata
+    @ServerTimestamp
+    val createdAt: Timestamp? = null,
     
-    // End date of the current billing period
-    val currentPeriodEnd: Date,
+    @ServerTimestamp
+    val updatedAt: Timestamp? = null,
     
-    // Whether it renews automatically
-    val autoRenew: Boolean,
+    val metadata: Map<String, Any> = emptyMap()
+) {
+    /**
+     * Check if subscription is active
+     */
+    fun isActive(): Boolean {
+        return status == SubscriptionStatus.ACTIVE || 
+               status == SubscriptionStatus.TRIALING
+    }
     
-    // Date when the subscription was cancelled (if applicable)
-    val canceledAt: Date?,
+    /**
+     * Check if subscription is in trial period
+     */
+    fun isInTrial(): Boolean {
+        return status == SubscriptionStatus.TRIALING
+    }
     
-    // JSON string of included features
-    val features: String,
+    /**
+     * Get days remaining in current period
+     */
+    fun getDaysRemaining(): Int {
+        return currentPeriodEnd?.let {
+            val now = java.util.Date()
+            val end = it.toDate()
+            val diff = end.time - now.time
+            return (diff / (1000 * 60 * 60 * 24)).toInt().coerceAtLeast(0)
+        } ?: 0
+    }
     
-    // Creation timestamp
-    val createdAt: Date,
+    /**
+     * Get days remaining in trial
+     */
+    fun getTrialDaysRemaining(): Int {
+        return trialEnd?.let {
+            val now = java.util.Date()
+            val end = it.toDate()
+            val diff = end.time - now.time
+            return (diff / (1000 * 60 * 60 * 24)).toInt().coerceAtLeast(0)
+        } ?: 0
+    }
     
-    // Last updated timestamp
-    val updatedAt: Date
-)
+    /**
+     * Get formatted price
+     */
+    fun getFormattedPrice(): String {
+        val currencySymbol = when (currency) {
+            "USD" -> "$"
+            "EUR" -> "€"
+            "GBP" -> "£"
+            "JPY" -> "¥"
+            else -> currency
+        }
+        
+        val priceString = if (currency == "JPY") {
+            price.toInt().toString()
+        } else {
+            String.format("%.2f", price)
+        }
+        
+        val intervalString = when (interval) {
+            "month" -> if (intervalCount == 1) "/month" else "/$intervalCount months"
+            "year" -> if (intervalCount == 1) "/year" else "/$intervalCount years"
+            "week" -> if (intervalCount == 1) "/week" else "/$intervalCount weeks"
+            "day" -> if (intervalCount == 1) "/day" else "/$intervalCount days"
+            else -> "/$interval"
+        }
+        
+        return "$currencySymbol$priceString$intervalString"
+    }
+    
+    /**
+     * Get formatted status
+     */
+    fun getFormattedStatus(): String {
+        return when (status) {
+            SubscriptionStatus.ACTIVE -> "Active"
+            SubscriptionStatus.CANCELED -> "Canceled"
+            SubscriptionStatus.EXPIRED -> "Expired"
+            SubscriptionStatus.PAST_DUE -> "Past Due"
+            SubscriptionStatus.UNPAID -> "Unpaid"
+            SubscriptionStatus.TRIALING -> "Trial"
+        }
+    }
+    
+    /**
+     * Check if a feature is included in the subscription
+     */
+    fun hasFeature(feature: String): Boolean {
+        return features.contains(feature)
+    }
+    
+    /**
+     * Get quota limit for a feature
+     */
+    fun getQuotaLimit(feature: String): Int {
+        return quotaLimits[feature] ?: 0
+    }
+}

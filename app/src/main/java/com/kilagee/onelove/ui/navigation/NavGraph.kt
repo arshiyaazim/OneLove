@@ -1,111 +1,154 @@
 package com.kilagee.onelove.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.kilagee.onelove.ui.admin.AdminScreen
-import com.kilagee.onelove.ui.home.HomeScreen
-import com.kilagee.onelove.ui.profile.ProfileScreen
-import com.kilagee.onelove.ui.settings.SettingsScreen
 
 /**
- * Navigation routes for the app
+ * Available screens in the app
  */
-object NavRoutes {
-    const val HOME = "home"
-    const val PROFILE = "profile"
-    const val MATCHES = "matches"
-    const val CHAT = "chat"
-    const val CHAT_DETAIL = "chat_detail/{chatId}"
-    const val AI_CHAT = "ai_chat"
-    const val AI_CHAT_DETAIL = "ai_chat_detail/{profileId}"
-    const val OFFERS = "offers"
-    const val SETTINGS = "settings"
-    const val ADMIN = "admin"
+sealed class Screen(val route: String) {
+    // Authentication screens
+    object Login : Screen("login")
+    object Register : Screen("register")
+    object ForgotPassword : Screen("forgot_password")
     
-    // Get chat route with ID
-    fun getChatDetailRoute(chatId: String) = "chat_detail/$chatId"
+    // Main tabs
+    object Home : Screen("home")
+    object Matches : Screen("matches")
+    object Offers : Screen("offers")
+    object AiChat : Screen("ai_chat")
+    object Videos : Screen("videos")
+    object Profile : Screen("profile")
+    object Settings : Screen("settings")
     
-    // Get AI chat route with profile ID
-    fun getAIChatDetailRoute(profileId: String) = "ai_chat_detail/$profileId"
+    // Feature screens
+    object Chat : Screen("chat/{userId}") {
+        fun createRoute(userId: String) = "chat/$userId"
+    }
+    object VideoCall : Screen("video_call/{userId}") {
+        fun createRoute(userId: String) = "video_call/$userId"
+    }
+    object AudioCall : Screen("audio_call/{userId}") {
+        fun createRoute(userId: String) = "audio_call/$userId"
+    }
+    object UserDetail : Screen("user_detail/{userId}") {
+        fun createRoute(userId: String) = "user_detail/$userId"
+    }
+    object EditProfile : Screen("edit_profile")
+    object Verification : Screen("verification")
+    object Subscriptions : Screen("subscriptions")
+    object Wallet : Screen("wallet")
+    object Rewards : Screen("rewards")
+    object Help : Screen("help")
+    
+    // Admin screens
+    object AdminDashboard : Screen("admin/dashboard")
+    object AdminUsers : Screen("admin/users")
+    object AdminVerifications : Screen("admin/verifications")
+    object AdminContent : Screen("admin/content")
+    object AdminAnalytics : Screen("admin/analytics")
+    object AdminSettings : Screen("admin/settings")
 }
 
-/**
- * Main navigation graph for the app
- */
 @Composable
 fun NavGraph(
     navController: NavHostController,
-    modifier: Modifier = Modifier,
-    startDestination: String = NavRoutes.HOME
+    startDestination: String = Screen.Login.route
 ) {
     NavHost(
         navController = navController,
-        startDestination = startDestination,
-        modifier = modifier
+        startDestination = startDestination
     ) {
-        // Home screen
-        composable(NavRoutes.HOME) {
-            HomeScreen(
-                onNavigateToProfile = {
-                    navController.navigate(NavRoutes.PROFILE)
-                },
-                onNavigateToMatches = {
-                    navController.navigate(NavRoutes.MATCHES)
-                },
-                onNavigateToChat = {
-                    navController.navigate(NavRoutes.CHAT)
-                },
-                onNavigateToAIChat = {
-                    navController.navigate(NavRoutes.AI_CHAT)
-                },
-                onNavigateToOffers = {
-                    navController.navigate(NavRoutes.OFFERS)
-                },
-                onNavigateToSettings = {
-                    navController.navigate(NavRoutes.SETTINGS)
-                }
-            )
+        // Authentication routes
+        composable(route = Screen.Login.route) {
+            // LoginScreen(navController = navController)
+        }
+        composable(route = Screen.Register.route) {
+            // RegisterScreen(navController = navController)
+        }
+        composable(route = Screen.ForgotPassword.route) {
+            // ForgotPasswordScreen(navController = navController)
         }
         
-        // Profile screen
-        composable(NavRoutes.PROFILE) {
-            ProfileScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
+        // Main tab routes
+        composable(route = Screen.Home.route) {
+            // HomeScreen(navController = navController)
+        }
+        composable(route = Screen.Matches.route) {
+            // MatchesScreen(navController = navController)
+        }
+        composable(route = Screen.Offers.route) {
+            // OffersScreen(navController = navController)
+        }
+        composable(route = Screen.AiChat.route) {
+            // AiChatScreen(navController = navController)
+        }
+        composable(route = Screen.Videos.route) {
+            // VideosScreen(navController = navController)
+        }
+        composable(route = Screen.Profile.route) {
+            // ProfileScreen(navController = navController)
+        }
+        composable(route = Screen.Settings.route) {
+            // SettingsScreen(navController = navController)
         }
         
-        // Settings screen
-        composable(NavRoutes.SETTINGS) {
-            SettingsScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToAdmin = {
-                    navController.navigate(NavRoutes.ADMIN)
-                }
-            )
+        // Feature screens
+        composable(route = Screen.Chat.route) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            // ChatScreen(userId = userId, navController = navController)
+        }
+        composable(route = Screen.VideoCall.route) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            // VideoCallScreen(userId = userId, navController = navController)
+        }
+        composable(route = Screen.AudioCall.route) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            // AudioCallScreen(userId = userId, navController = navController)
+        }
+        composable(route = Screen.UserDetail.route) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            // UserDetailScreen(userId = userId, navController = navController)
+        }
+        composable(route = Screen.EditProfile.route) {
+            // EditProfileScreen(navController = navController)
+        }
+        composable(route = Screen.Verification.route) {
+            // VerificationScreen(navController = navController)
+        }
+        composable(route = Screen.Subscriptions.route) {
+            // SubscriptionsScreen(navController = navController)
+        }
+        composable(route = Screen.Wallet.route) {
+            // WalletScreen(navController = navController)
+        }
+        composable(route = Screen.Rewards.route) {
+            // RewardsScreen(navController = navController)
+        }
+        composable(route = Screen.Help.route) {
+            // HelpScreen(navController = navController)
         }
         
-        // Admin screen
-        composable(NavRoutes.ADMIN) {
-            AdminScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
+        // Admin screens
+        composable(route = Screen.AdminDashboard.route) {
+            // AdminDashboardScreen(navController = navController)
         }
-        
-        // Other routes would be implemented here
-        // Matches screen
-        // Chat list screen
-        // Chat detail screen
-        // AI Chat list screen
-        // AI Chat detail screen
-        // Offers screen
+        composable(route = Screen.AdminUsers.route) {
+            // AdminUsersScreen(navController = navController)
+        }
+        composable(route = Screen.AdminVerifications.route) {
+            // AdminVerificationsScreen(navController = navController)
+        }
+        composable(route = Screen.AdminContent.route) {
+            // AdminContentScreen(navController = navController)
+        }
+        composable(route = Screen.AdminAnalytics.route) {
+            // AdminAnalyticsScreen(navController = navController)
+        }
+        composable(route = Screen.AdminSettings.route) {
+            // AdminSettingsScreen(navController = navController)
+        }
     }
 }
