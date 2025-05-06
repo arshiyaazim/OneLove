@@ -1,5 +1,6 @@
 package com.kilagee.onelove.data.repository
 
+import com.google.firebase.auth.AuthCredential
 import com.google.firebase.auth.FirebaseUser
 import com.kilagee.onelove.data.model.Result
 import com.kilagee.onelove.data.model.User
@@ -9,103 +10,129 @@ import kotlinx.coroutines.flow.Flow
  * Repository interface for authentication operations
  */
 interface AuthRepository {
-    
     /**
-     * Get the current logged-in Firebase user
-     * @return The current Firebase user or null if not logged in
+     * Get the current authenticated user
      */
-    fun getCurrentFirebaseUser(): FirebaseUser?
+    fun getCurrentUser(): FirebaseUser?
     
     /**
-     * Get the current user's ID
-     * @return The user ID or null if not logged in
+     * Get the current user's UID
      */
     fun getCurrentUserId(): String?
     
     /**
+     * Get the current authentication state as a Flow
+     * Returns null when not logged in, and FirebaseUser when logged in
+     */
+    fun getCurrentUserFlow(): Flow<FirebaseUser?>
+    
+    /**
      * Check if the user is logged in
-     * @return True if logged in, false otherwise
      */
     fun isLoggedIn(): Boolean
     
     /**
-     * Sign in with email and password
-     * @param email User's email
-     * @param password User's password
-     * @return Result containing the Firebase user or error
+     * Register with email and password
      */
-    suspend fun signInWithEmailPassword(email: String, password: String): Result<FirebaseUser>
-    
-    /**
-     * Sign up with email and password
-     * @param email User's email
-     * @param password User's password
-     * @param displayName User's display name
-     * @return Result containing the Firebase user or error
-     */
-    suspend fun signUpWithEmailPassword(
-        email: String, 
-        password: String, 
+    suspend fun registerWithEmailAndPassword(
+        email: String,
+        password: String,
         displayName: String
     ): Result<FirebaseUser>
     
     /**
-     * Sign out the current user
-     * @return Result indicating success or error
+     * Log in with email and password
      */
-    suspend fun signOut(): Result<Unit>
+    suspend fun loginWithEmailAndPassword(
+        email: String,
+        password: String
+    ): Result<FirebaseUser>
     
     /**
-     * Send password reset email
-     * @param email User's email
-     * @return Result indicating success or error
+     * Sign in with Google or other providers using AuthCredential
      */
-    suspend fun sendPasswordResetEmail(email: String): Result<Unit>
+    suspend fun signInWithCredential(
+        credential: AuthCredential
+    ): Result<FirebaseUser>
     
     /**
-     * Verify email
-     * @return Result indicating success or error
+     * Send email verification
      */
     suspend fun sendEmailVerification(): Result<Unit>
     
     /**
-     * Update user's password
-     * @param currentPassword Current password
-     * @param newPassword New password
-     * @return Result indicating success or error
+     * Check if email is verified
      */
-    suspend fun updatePassword(currentPassword: String, newPassword: String): Result<Unit>
+    fun isEmailVerified(): Boolean
     
     /**
-     * Update user's email
-     * @param newEmail New email
-     * @param password Current password
-     * @return Result indicating success or error
+     * Resend email verification
      */
-    suspend fun updateEmail(newEmail: String, password: String): Result<Unit>
+    suspend fun resendEmailVerification(): Result<Unit>
+    
+    /**
+     * Send password reset email
+     */
+    suspend fun sendPasswordResetEmail(email: String): Result<Unit>
+    
+    /**
+     * Confirm password reset with code and new password
+     */
+    suspend fun confirmPasswordReset(
+        code: String,
+        newPassword: String
+    ): Result<Unit>
+    
+    /**
+     * Update password for logged in user
+     */
+    suspend fun updatePassword(
+        currentPassword: String,
+        newPassword: String
+    ): Result<Unit>
+    
+    /**
+     * Update email for logged in user
+     */
+    suspend fun updateEmail(
+        newEmail: String,
+        password: String
+    ): Result<Unit>
+    
+    /**
+     * Update display name for logged in user
+     */
+    suspend fun updateDisplayName(displayName: String): Result<Unit>
+    
+    /**
+     * Link email provider to anonymous account
+     */
+    suspend fun linkEmailProvider(
+        email: String,
+        password: String
+    ): Result<FirebaseUser>
+    
+    /**
+     * Link phone number to account
+     */
+    suspend fun linkPhoneNumber(
+        phoneNumber: String,
+        verificationId: String,
+        verificationCode: String
+    ): Result<FirebaseUser>
+    
+    /**
+     * Sign out
+     */
+    suspend fun signOut()
     
     /**
      * Delete user account
-     * @param password Current password
-     * @return Result indicating success or error
      */
     suspend fun deleteAccount(password: String): Result<Unit>
     
     /**
-     * Get authentication state as a Flow
-     * @return Flow emitting the current Firebase user or null
+     * Get the initial user data after authentication
      */
-    fun getAuthStateFlow(): Flow<FirebaseUser?>
-    
-    /**
-     * Get current user from Firestore
-     * @return Result containing the user or error
-     */
-    suspend fun getCurrentUserProfile(): Result<User>
-    
-    /**
-     * Get current user from Firestore as Flow
-     * @return Flow emitting Result containing the user or error
-     */
-    fun getCurrentUserProfileFlow(): Flow<Result<User>>
+    suspend fun getUserData(): Result<User>
 }

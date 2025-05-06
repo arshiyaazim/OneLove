@@ -4,211 +4,217 @@ import android.net.Uri
 import com.kilagee.onelove.data.model.Result
 import com.kilagee.onelove.data.model.User
 import com.kilagee.onelove.data.model.UserGender
+import com.kilagee.onelove.data.model.UserPreference
 import com.kilagee.onelove.data.model.VerificationStatus
 import kotlinx.coroutines.flow.Flow
 import java.util.Date
 
 /**
- * Repository interface for user management
+ * Repository interface for user operations
  */
 interface UserRepository {
-    
     /**
      * Get user by ID
-     * @param userId User ID
-     * @return Result containing the user or error
      */
     suspend fun getUserById(userId: String): Result<User>
     
     /**
-     * Get user by ID as Flow
-     * @param userId User ID
-     * @return Flow emitting Result containing the user or error
+     * Get current user data
      */
-    fun getUserByIdFlow(userId: String): Flow<Result<User>>
+    suspend fun getCurrentUser(): Result<User>
     
     /**
-     * Create new user profile
-     * @param user User data
-     * @return Result containing the created user ID or error
+     * Get current user as flow
      */
-    suspend fun createUser(user: User): Result<String>
+    fun getCurrentUserFlow(): Flow<User?>
+    
+    /**
+     * Create user profile
+     */
+    suspend fun createUserProfile(user: User): Result<User>
     
     /**
      * Update user profile
-     * @param user User data
-     * @return Result containing the updated user or error
      */
-    suspend fun updateUser(user: User): Result<User>
+    suspend fun updateUserProfile(user: User): Result<User>
     
     /**
-     * Update user profile picture
-     * @param userId User ID
-     * @param imageUri Image URI
-     * @return Result containing the image URL or error
+     * Update user display name
      */
-    suspend fun updateProfilePicture(userId: String, imageUri: Uri): Result<String>
+    suspend fun updateDisplayName(userId: String, displayName: String): Result<Unit>
     
     /**
-     * Update user cover photo
-     * @param userId User ID
-     * @param imageUri Image URI
-     * @return Result containing the image URL or error
+     * Update user bio
      */
-    suspend fun updateCoverPhoto(userId: String, imageUri: Uri): Result<String>
-    
-    /**
-     * Upload user photo to gallery
-     * @param userId User ID
-     * @param imageUri Image URI
-     * @return Result containing the image URL or error
-     */
-    suspend fun uploadUserPhoto(userId: String, imageUri: Uri): Result<String>
-    
-    /**
-     * Delete user photo from gallery
-     * @param userId User ID
-     * @param photoUrl Photo URL
-     * @return Result indicating success or error
-     */
-    suspend fun deleteUserPhoto(userId: String, photoUrl: String): Result<Unit>
-    
-    /**
-     * Upload verification documents
-     * @param userId User ID
-     * @param documentUris List of document URIs
-     * @return Result containing the document URLs or error
-     */
-    suspend fun uploadVerificationDocuments(userId: String, documentUris: List<Uri>): Result<List<String>>
-    
-    /**
-     * Update user verification status
-     * @param userId User ID
-     * @param status Verification status
-     * @return Result indicating success or error
-     */
-    suspend fun updateVerificationStatus(userId: String, status: VerificationStatus): Result<Unit>
-    
-    /**
-     * Update user online status
-     * @param userId User ID
-     * @param isOnline Online status
-     * @return Result indicating success or error
-     */
-    suspend fun updateOnlineStatus(userId: String, isOnline: Boolean): Result<Unit>
-    
-    /**
-     * Update user last active timestamp
-     * @param userId User ID
-     * @param lastActive Last active timestamp
-     * @return Result indicating success or error
-     */
-    suspend fun updateLastActive(userId: String, lastActive: Date): Result<Unit>
-    
-    /**
-     * Update user FCM token
-     * @param userId User ID
-     * @param token FCM token
-     * @return Result indicating success or error
-     */
-    suspend fun updateFcmToken(userId: String, token: String): Result<Unit>
-    
-    /**
-     * Block user
-     * @param userId Current user ID
-     * @param blockedUserId User ID to block
-     * @return Result indicating success or error
-     */
-    suspend fun blockUser(userId: String, blockedUserId: String): Result<Unit>
-    
-    /**
-     * Unblock user
-     * @param userId Current user ID
-     * @param unblockedUserId User ID to unblock
-     * @return Result indicating success or error
-     */
-    suspend fun unblockUser(userId: String, unblockedUserId: String): Result<Unit>
-    
-    /**
-     * Get blocked users
-     * @param userId User ID
-     * @return Result containing list of blocked user IDs or error
-     */
-    suspend fun getBlockedUsers(userId: String): Result<List<String>>
-    
-    /**
-     * Search users by query
-     * @param query Search query
-     * @param limit Maximum number of results
-     * @return Result containing list of users or error
-     */
-    suspend fun searchUsers(query: String, limit: Int = 20): Result<List<User>>
-    
-    /**
-     * Get suggested users based on preferences
-     * @param userId Current user ID
-     * @param limit Maximum number of results
-     * @return Result containing list of suggested users or error
-     */
-    suspend fun getSuggestedUsers(userId: String, limit: Int = 20): Result<List<User>>
+    suspend fun updateBio(userId: String, bio: String): Result<Unit>
     
     /**
      * Update user gender
-     * @param userId User ID
-     * @param gender Gender
-     * @return Result indicating success or error
      */
     suspend fun updateGender(userId: String, gender: UserGender): Result<Unit>
     
     /**
      * Update user gender preferences
-     * @param userId User ID
-     * @param preferences List of preferred genders
-     * @return Result indicating success or error
      */
-    suspend fun updateGenderPreferences(userId: String, preferences: List<UserGender>): Result<Unit>
+    suspend fun updateGenderPreferences(userId: String, genderPreferences: List<UserGender>): Result<Unit>
+    
+    /**
+     * Update user birth date
+     */
+    suspend fun updateBirthDate(userId: String, birthDate: Date): Result<Unit>
     
     /**
      * Update user interests
-     * @param userId User ID
-     * @param interests List of interests
-     * @return Result indicating success or error
      */
     suspend fun updateInterests(userId: String, interests: List<String>): Result<Unit>
     
     /**
-     * Add points to user
-     * @param userId User ID
-     * @param points Points to add
-     * @return Result containing updated point total or error
+     * Update user location
      */
-    suspend fun addPoints(userId: String, points: Int): Result<Int>
+    suspend fun updateLocation(
+        userId: String,
+        latitude: Double,
+        longitude: Double,
+        locationName: String? = null
+    ): Result<Unit>
+    
+    /**
+     * Update user profile photo
+     */
+    suspend fun updateProfilePhoto(userId: String, photoUri: Uri): Result<String>
+    
+    /**
+     * Update user cover photo
+     */
+    suspend fun updateCoverPhoto(userId: String, photoUri: Uri): Result<String>
+    
+    /**
+     * Add photo to user gallery
+     */
+    suspend fun addPhotoToGallery(userId: String, photoUri: Uri): Result<String>
+    
+    /**
+     * Remove photo from user gallery
+     */
+    suspend fun removePhotoFromGallery(userId: String, photoUrl: String): Result<Unit>
+    
+    /**
+     * Update user preferences
+     */
+    suspend fun updateUserPreference(userId: String, preference: UserPreference): Result<Unit>
+    
+    /**
+     * Update user settings
+     */
+    suspend fun updateUserSettings(
+        userId: String,
+        showLocation: Boolean? = null,
+        showOnlineStatus: Boolean? = null,
+        notificationEnabled: Boolean? = null,
+        emailNotificationEnabled: Boolean? = null,
+        profileVisibility: Boolean? = null,
+        maxDistanceInKm: Int? = null,
+        minAgePreference: Int? = null,
+        maxAgePreference: Int? = null,
+        language: String? = null
+    ): Result<Unit>
+    
+    /**
+     * Block user
+     */
+    suspend fun blockUser(userId: String, blockedUserId: String): Result<Unit>
+    
+    /**
+     * Unblock user
+     */
+    suspend fun unblockUser(userId: String, blockedUserId: String): Result<Unit>
+    
+    /**
+     * Report user
+     */
+    suspend fun reportUser(
+        userId: String,
+        reportedUserId: String,
+        reason: String,
+        details: String? = null
+    ): Result<Unit>
+    
+    /**
+     * Submit verification documents
+     */
+    suspend fun submitVerificationDocuments(
+        userId: String,
+        documentType: String,
+        documentUri: Uri
+    ): Result<String>
+    
+    /**
+     * Check verification status
+     */
+    suspend fun checkVerificationStatus(userId: String): Result<VerificationStatus>
+    
+    /**
+     * Search users
+     */
+    suspend fun searchUsers(query: String, limit: Int = 20): Result<List<User>>
+    
+    /**
+     * Get nearby users
+     */
+    suspend fun getNearbyUsers(
+        latitude: Double,
+        longitude: Double,
+        radius: Double,
+        limit: Int = 20
+    ): Result<List<User>>
+    
+    /**
+     * Get recommended matches
+     */
+    suspend fun getRecommendedMatches(userId: String, limit: Int = 20): Result<List<User>>
+    
+    /**
+     * Add user to favorites
+     */
+    suspend fun addUserToFavorites(userId: String, favoriteUserId: String): Result<Unit>
+    
+    /**
+     * Remove user from favorites
+     */
+    suspend fun removeUserFromFavorites(userId: String, favoriteUserId: String): Result<Unit>
+    
+    /**
+     * Update user online status
+     */
+    suspend fun updateUserOnlineStatus(userId: String, isOnline: Boolean): Result<Unit>
+    
+    /**
+     * Update user last active timestamp
+     */
+    suspend fun updateUserLastActive(userId: String): Result<Unit>
+    
+    /**
+     * Add points to user
+     */
+    suspend fun addUserPoints(userId: String, points: Int): Result<Int>
     
     /**
      * Subtract points from user
-     * @param userId User ID
-     * @param points Points to subtract
-     * @return Result containing updated point total or error
      */
-    suspend fun subtractPoints(userId: String, points: Int): Result<Int>
+    suspend fun subtractUserPoints(userId: String, points: Int): Result<Int>
     
     /**
-     * Get all verified users
-     * @param limit Maximum number of results
-     * @return Result containing list of verified users or error
+     * Update user language
      */
-    suspend fun getVerifiedUsers(limit: Int = 50): Result<List<User>>
+    suspend fun updateUserLanguage(userId: String, language: String): Result<Unit>
     
     /**
-     * Get all admin users
-     * @return Result containing list of admin users or error
+     * Update user languages spoken
      */
-    suspend fun getAdminUsers(): Result<List<User>>
+    suspend fun updateUserLanguages(userId: String, languages: List<String>): Result<Unit>
     
     /**
      * Delete user account
-     * @param userId User ID
-     * @return Result indicating success or error
      */
     suspend fun deleteUserAccount(userId: String): Result<Unit>
 }

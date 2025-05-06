@@ -66,11 +66,19 @@ The project includes security rules for Firestore (`firebase/firestore.rules`) a
 
 ### Prerequisites
 
-- Android Studio Arctic Fox or later
-- JDK 11 or higher
-- Android SDK with API level 33+ (Android 13.0+)
+- Android Studio Iguana or later
+- JDK 17
+- Android SDK with API level 34 (Android 14.0+)
 - Firebase project with required services
 - Stripe API keys (for payment features)
+
+### Version Requirements
+
+- Android Gradle Plugin: 8.9.2
+- Kotlin: 2.0.21
+- Gradle: 8.11.1
+- Firebase BOM: 33.13.0
+- Jetpack Compose BOM: 2024.09.00
 
 ### Configuration
 

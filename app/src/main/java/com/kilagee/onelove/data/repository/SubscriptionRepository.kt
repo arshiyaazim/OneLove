@@ -1,171 +1,205 @@
 package com.kilagee.onelove.data.repository
 
+import com.kilagee.onelove.data.model.PaymentMethod
 import com.kilagee.onelove.data.model.Result
 import com.kilagee.onelove.data.model.Subscription
+import com.kilagee.onelove.data.model.SubscriptionPlan
 import com.kilagee.onelove.data.model.SubscriptionStatus
-import com.kilagee.onelove.data.model.SubscriptionType
+import com.kilagee.onelove.data.model.SubscriptionTier
 import kotlinx.coroutines.flow.Flow
 import java.util.Date
 
 /**
- * Repository interface for subscriptions
+ * Repository interface for subscription operations
  */
 interface SubscriptionRepository {
+    /**
+     * Get all subscription plans
+     */
+    suspend fun getSubscriptionPlans(): Result<List<SubscriptionPlan>>
     
     /**
-     * Get subscription by ID
-     * @param subscriptionId Subscription ID
-     * @return Result containing the subscription or error
+     * Get subscription plan by ID
      */
-    suspend fun getSubscriptionById(subscriptionId: String): Result<Subscription>
+    suspend fun getSubscriptionPlanById(planId: String): Result<SubscriptionPlan>
     
     /**
-     * Get subscription by ID as Flow
-     * @param subscriptionId Subscription ID
-     * @return Flow emitting Result containing the subscription or error
+     * Get current user subscription
      */
-    fun getSubscriptionByIdFlow(subscriptionId: String): Flow<Result<Subscription>>
+    suspend fun getCurrentSubscription(userId: String): Result<Subscription?>
     
     /**
-     * Get user's active subscription
-     * @param userId User ID
-     * @return Result containing the subscription or error
+     * Get current user subscription as Flow
      */
-    suspend fun getUserActiveSubscription(userId: String): Result<Subscription?>
+    fun getCurrentSubscriptionFlow(userId: String): Flow<Subscription?>
     
     /**
-     * Get user's active subscription as Flow
-     * @param userId User ID
-     * @return Flow emitting Result containing the subscription or error
+     * Create a Stripe payment intent
      */
-    fun getUserActiveSubscriptionFlow(userId: String): Flow<Result<Subscription?>>
-    
-    /**
-     * Get all user subscriptions
-     * @param userId User ID
-     * @param limit Maximum number of results
-     * @return Result containing list of subscriptions or error
-     */
-    suspend fun getUserSubscriptions(userId: String, limit: Int = 10): Result<List<Subscription>>
-    
-    /**
-     * Create subscription
-     * @param userId User ID
-     * @param subscriptionType Subscription type
-     * @param paymentMethod Payment method
-     * @param stripeCustomerId Stripe customer ID
-     * @param stripeSubscriptionId Stripe subscription ID
-     * @param startDate Start date
-     * @param endDate End date
-     * @param autoRenew Auto-renew setting
-     * @param paymentAmount Payment amount
-     * @param paymentCurrency Payment currency
-     * @param featuresIncluded List of included features
-     * @return Result containing the subscription ID or error
-     */
-    suspend fun createSubscription(
+    suspend fun createPaymentIntent(
         userId: String,
-        subscriptionType: SubscriptionType,
-        paymentMethod: String,
-        stripeCustomerId: String,
-        stripeSubscriptionId: String,
-        startDate: Date,
-        endDate: Date,
-        autoRenew: Boolean,
-        paymentAmount: Double,
-        paymentCurrency: String = "USD",
-        featuresIncluded: List<String> = emptyList()
-    ): Result<String>
+        planId: String,
+        amount: Double,
+        currency: String,
+        metadata: Map<String, String> = emptyMap()
+    ): Result<Map<String, Any>>
     
     /**
-     * Cancel subscription
-     * @param subscriptionId Subscription ID
-     * @param cancellationReason Optional cancellation reason
-     * @return Result containing the updated subscription or error
+     * Confirm a Stripe payment intent
      */
-    suspend fun cancelSubscription(
-        subscriptionId: String,
-        cancellationReason: String? = null
+    suspend fun confirmPaymentIntent(
+        paymentIntentId: String,
+        paymentMethodId: String
+    ): Result<Map<String, Any>>
+    
+    /**
+     * Subscribe to a plan with Stripe
+     */
+    suspend fun subscribeWithStripe(
+        userId: String,
+        planId: String,
+        paymentMethodId: String,
+        promoCode: String? = null
     ): Result<Subscription>
     
     /**
-     * Update subscription auto-renew setting
-     * @param subscriptionId Subscription ID
-     * @param autoRenew Auto-renew setting
-     * @return Result containing the updated subscription or error
+     * Subscribe to a plan with local payment methods (bKash/Nagad)
      */
-    suspend fun updateSubscriptionAutoRenew(
+    suspend fun subscribeWithLocalPayment(
+        userId: String,
+        planId: String,
+        paymentMethod: PaymentMethod,
+        transactionId: String,
+        amount: Double,
+        currency: String = "BDT",
+        promoCode: String? = null
+    ): Result<Subscription>
+    
+    /**
+     * Cancel subscription
+     */
+    suspend fun cancelSubscription(
+        userId: String,
+        subscriptionId: String,
+        cancelReason: String? = null
+    ): Result<Subscription>
+    
+    /**
+     * Update auto-renew settings
+     */
+    suspend fun updateAutoRenew(
+        userId: String,
         subscriptionId: String,
         autoRenew: Boolean
     ): Result<Subscription>
     
     /**
-     * Change subscription type
-     * @param subscriptionId Subscription ID
-     * @param newType New subscription type
-     * @return Result containing the updated subscription or error
+     * Get subscription status
      */
-    suspend fun changeSubscriptionType(
-        subscriptionId: String,
-        newType: SubscriptionType
+    suspend fun getSubscriptionStatus(
+        userId: String,
+        subscriptionId: String
+    ): Result<SubscriptionStatus>
+    
+    /**
+     * Get subscription details
+     */
+    suspend fun getSubscriptionDetails(
+        userId: String,
+        subscriptionId: String
     ): Result<Subscription>
     
     /**
-     * Extend subscription
-     * @param subscriptionId Subscription ID
-     * @param newEndDate New end date
-     * @return Result containing the updated subscription or error
+     * Get subscription by ID
      */
-    suspend fun extendSubscription(
-        subscriptionId: String,
-        newEndDate: Date
+    suspend fun getSubscriptionById(subscriptionId: String): Result<Subscription>
+    
+    /**
+     * Apply promotional code
+     */
+    suspend fun applyPromoCode(
+        promoCode: String,
+        planId: String
+    ): Result<Map<String, Any>>
+    
+    /**
+     * Verify subscription receipt (for App Store purchases)
+     */
+    suspend fun verifySubscriptionReceipt(
+        userId: String,
+        receipt: String,
+        planId: String
     ): Result<Subscription>
     
     /**
-     * Update subscription status
-     * @param subscriptionId Subscription ID
-     * @param status New status
-     * @return Result containing the updated subscription or error
+     * Verify Google Play purchase token
      */
-    suspend fun updateSubscriptionStatus(
-        subscriptionId: String,
-        status: SubscriptionStatus
+    suspend fun verifyGooglePlayPurchase(
+        userId: String,
+        purchaseToken: String,
+        productId: String,
+        planId: String
     ): Result<Subscription>
     
     /**
-     * Get available subscription plans
-     * @return Result containing list of subscription plans or error
+     * Get subscription history for user
      */
-    suspend fun getSubscriptionPlans(): Result<List<Map<String, Any>>>
+    suspend fun getSubscriptionHistory(userId: String): Result<List<Subscription>>
     
     /**
-     * Sync subscription data with Stripe
-     * @param userId User ID
-     * @return Result containing the updated subscription or error
+     * Validate premium features access
      */
-    suspend fun syncUserSubscriptionWithStripe(userId: String): Result<Subscription?>
+    suspend fun validatePremiumAccess(
+        userId: String,
+        feature: String
+    ): Result<Boolean>
     
     /**
-     * Check if user has premium features
-     * @param userId User ID
-     * @return Result containing boolean indicating premium status or error
+     * Get user's subscription tier
      */
-    suspend fun userHasPremiumFeatures(userId: String): Result<Boolean>
+    suspend fun getUserSubscriptionTier(userId: String): Result<SubscriptionTier>
     
     /**
-     * Get user subscription statistics
-     * @return Result containing subscription statistics or error
+     * Sync subscriptions with Stripe
      */
-    suspend fun getSubscriptionStatistics(): Result<Map<String, Int>>
+    suspend fun syncSubscriptions(userId: String): Result<Unit>
     
     /**
-     * Get expiring subscriptions
-     * @param daysUntilExpiry Days until expiry
-     * @param limit Maximum number of results
-     * @return Result containing list of expiring subscriptions or error
+     * Check for active subscription
      */
-    suspend fun getExpiringSubscriptions(
-        daysUntilExpiry: Int = 7,
-        limit: Int = 100
-    ): Result<List<Subscription>>
+    suspend fun hasActiveSubscription(userId: String): Result<Boolean>
+    
+    /**
+     * Get expiry date for active subscription
+     */
+    suspend fun getSubscriptionExpiryDate(userId: String): Result<Date?>
+    
+    /**
+     * Get payment methods for user
+     */
+    suspend fun getUserPaymentMethods(userId: String): Result<List<Map<String, Any>>>
+    
+    /**
+     * Add payment method
+     */
+    suspend fun addPaymentMethod(
+        userId: String,
+        paymentMethodId: String
+    ): Result<Map<String, Any>>
+    
+    /**
+     * Remove payment method
+     */
+    suspend fun removePaymentMethod(
+        userId: String,
+        paymentMethodId: String
+    ): Result<Unit>
+    
+    /**
+     * Make default payment method
+     */
+    suspend fun setDefaultPaymentMethod(
+        userId: String,
+        paymentMethodId: String
+    ): Result<Unit>
 }

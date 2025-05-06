@@ -1,204 +1,219 @@
 package com.kilagee.onelove.data.repository
 
 import android.net.Uri
+import com.kilagee.onelove.data.model.AIBehavior
+import com.kilagee.onelove.data.model.AIPersonalityType
 import com.kilagee.onelove.data.model.AIProfile
-import com.kilagee.onelove.data.model.AIProfileCategory
-import com.kilagee.onelove.data.model.AvailabilityTime
-import com.kilagee.onelove.data.model.Message
 import com.kilagee.onelove.data.model.Result
 import com.kilagee.onelove.data.model.UserGender
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository interface for AI profiles
+ * Repository interface for AI Profile operations
  */
 interface AIProfileRepository {
-    
     /**
      * Get AI profile by ID
-     * @param profileId Profile ID
-     * @return Result containing the AI profile or error
      */
     suspend fun getAIProfileById(profileId: String): Result<AIProfile>
     
     /**
-     * Get AI profile by ID as Flow
-     * @param profileId Profile ID
-     * @return Flow emitting Result containing the AI profile or error
-     */
-    fun getAIProfileByIdFlow(profileId: String): Flow<Result<AIProfile>>
-    
-    /**
      * Get all AI profiles
-     * @param isPremiumUser Whether the requesting user has premium subscription
-     * @param limit Maximum number of results
-     * @return Result containing list of AI profiles or error
      */
-    suspend fun getAllAIProfiles(
-        isPremiumUser: Boolean,
-        limit: Int = 50
-    ): Result<List<AIProfile>>
+    suspend fun getAllAIProfiles(limit: Int = 20): Result<List<AIProfile>>
     
     /**
-     * Get all AI profiles as Flow
-     * @param isPremiumUser Whether the requesting user has premium subscription
-     * @return Flow emitting Result containing list of AI profiles or error
+     * Get AI profiles as Flow
      */
-    fun getAllAIProfilesFlow(isPremiumUser: Boolean): Flow<Result<List<AIProfile>>>
+    fun getAIProfilesFlow(): Flow<List<AIProfile>>
     
     /**
      * Get AI profiles by category
-     * @param category AI profile category
-     * @param isPremiumUser Whether the requesting user has premium subscription
-     * @param limit Maximum number of results
-     * @return Result containing list of AI profiles or error
      */
-    suspend fun getAIProfilesByCategory(
-        category: AIProfileCategory,
-        isPremiumUser: Boolean,
-        limit: Int = 20
-    ): Result<List<AIProfile>>
+    suspend fun getAIProfilesByCategory(category: String, limit: Int = 20): Result<List<AIProfile>>
     
     /**
-     * Get featured AI profiles
-     * @param isPremiumUser Whether the requesting user has premium subscription
-     * @param limit Maximum number of results
-     * @return Result containing list of AI profiles or error
+     * Get popular AI profiles
      */
-    suspend fun getFeaturedAIProfiles(
-        isPremiumUser: Boolean,
+    suspend fun getPopularAIProfiles(limit: Int = 10): Result<List<AIProfile>>
+    
+    /**
+     * Get AI profiles by personality type
+     */
+    suspend fun getAIProfilesByPersonality(
+        personalityType: AIPersonalityType,
         limit: Int = 10
     ): Result<List<AIProfile>>
     
     /**
-     * Create AI profile (admin only)
-     * @param name Profile name
-     * @param bio Profile bio
-     * @param age Age
-     * @param gender Gender
-     * @param interests List of interests
-     * @param avatarUri Avatar image URI
-     * @param photoUris List of photo URIs
-     * @param voiceUri Optional voice URI
-     * @param personalityTraits Personality traits
-     * @param responseScripts Map of response scripts
-     * @param introMessages Intro messages
-     * @param category AI profile category
-     * @param availableTimes List of available time periods
-     * @param premiumOnly Whether profile is premium-only
-     * @param conversationStarters List of conversation starters
-     * @return Result containing the created profile ID or error
+     * Get AI profiles by gender
+     */
+    suspend fun getAIProfilesByGender(
+        gender: UserGender,
+        limit: Int = 10
+    ): Result<List<AIProfile>>
+    
+    /**
+     * Create a new AI profile (admin only)
      */
     suspend fun createAIProfile(
         name: String,
-        bio: String,
-        age: Int,
         gender: UserGender,
+        age: Int,
+        bio: String,
+        description: String,
+        personality: AIPersonalityType,
         interests: List<String>,
-        avatarUri: Uri,
-        photoUris: List<Uri>,
+        traits: List<String>,
+        occupation: String,
+        background: String,
+        profileImageUri: Uri,
+        galleryImageUris: List<Uri>? = null,
         voiceUri: Uri? = null,
-        personalityTraits: List<String>,
-        responseScripts: Map<String, List<String>>,
-        introMessages: List<String>,
-        category: AIProfileCategory,
-        availableTimes: List<AvailabilityTime>,
-        premiumOnly: Boolean = true,
-        conversationStarters: List<String> = emptyList()
-    ): Result<String>
+        behaviors: List<AIBehavior> = emptyList(),
+        greetings: List<String> = emptyList(),
+        farewells: List<String> = emptyList(),
+        questions: List<String> = emptyList(),
+        responses: Map<String, List<String>> = emptyMap(),
+        icebreakers: List<String> = emptyList(),
+        category: String = "",
+        tags: List<String> = emptyList(),
+        isPremiumOnly: Boolean = false,
+        onProgress: ((Float) -> Unit)? = null
+    ): Result<AIProfile>
     
     /**
      * Update AI profile (admin only)
-     * @param profileId Profile ID
-     * @param updates Map of profile field updates
-     * @return Result containing the updated profile or error
      */
     suspend fun updateAIProfile(
         profileId: String,
-        updates: Map<String, Any?>
+        name: String? = null,
+        bio: String? = null,
+        description: String? = null,
+        interests: List<String>? = null,
+        traits: List<String>? = null,
+        occupation: String? = null,
+        background: String? = null,
+        profileImageUri: Uri? = null,
+        behaviors: List<AIBehavior>? = null,
+        greetings: List<String>? = null,
+        farewells: List<String>? = null,
+        questions: List<String>? = null,
+        responses: Map<String, List<String>>? = null,
+        icebreakers: List<String>? = null,
+        category: String? = null,
+        tags: List<String>? = null,
+        isPremiumOnly: Boolean? = null,
+        isActive: Boolean? = null,
+        onProgress: ((Float) -> Unit)? = null
     ): Result<AIProfile>
     
     /**
-     * Delete AI profile (admin only)
-     * @param profileId Profile ID
-     * @return Result indicating success or error
+     * Add gallery image to AI profile (admin only)
      */
-    suspend fun deleteAIProfile(profileId: String): Result<Unit>
-    
-    /**
-     * Set AI profile featured status (admin only)
-     * @param profileId Profile ID
-     * @param isFeatured Featured status
-     * @return Result containing the updated profile or error
-     */
-    suspend fun setAIProfileFeaturedStatus(
+    suspend fun addAIProfileGalleryImage(
         profileId: String,
-        isFeatured: Boolean
-    ): Result<AIProfile>
+        imageUri: Uri,
+        onProgress: ((Float) -> Unit)? = null
+    ): Result<String>
     
     /**
-     * Generate AI response message
-     * @param profileId AI profile ID
-     * @param userId User ID
-     * @param userMessage User message content
-     * @param chatId Chat ID
-     * @return Result containing the generated message or error
+     * Remove gallery image from AI profile (admin only)
      */
-    suspend fun generateAIResponse(
+    suspend fun removeAIProfileGalleryImage(
+        profileId: String,
+        imageUrl: String
+    ): Result<Unit>
+    
+    /**
+     * Update AI profile voice (admin only)
+     */
+    suspend fun updateAIProfileVoice(
+        profileId: String,
+        voiceUri: Uri,
+        onProgress: ((Float) -> Unit)? = null
+    ): Result<String>
+    
+    /**
+     * Get AI message response
+     */
+    suspend fun getAIMessageResponse(
         profileId: String,
         userId: String,
-        userMessage: String,
-        chatId: String
-    ): Result<Message>
+        message: String,
+        chatContext: List<String> = emptyList()
+    ): Result<String>
     
     /**
-     * Get user's recent AI chats
-     * @param userId User ID
-     * @param limit Maximum number of results
-     * @return Result containing map of AI profile IDs to recent messages or error
+     * Generate AI message suggestions
      */
-    suspend fun getUserRecentAIChats(
+    suspend fun generateAIMessageSuggestions(
+        profileId: String,
         userId: String,
-        limit: Int = 5
-    ): Result<Map<String, List<Message>>>
+        contextMessages: List<String> = emptyList(),
+        count: Int = 3
+    ): Result<List<String>>
     
     /**
-     * Get AI profile interaction count
-     * @param profileId Profile ID
-     * @return Result containing the interaction count or error
+     * Add AI profile to user favorites
      */
-    suspend fun getAIProfileInteractionCount(profileId: String): Result<Int>
+    suspend fun addAIProfileToFavorites(
+        userId: String,
+        profileId: String
+    ): Result<Unit>
     
     /**
-     * Increment AI profile interaction count
-     * @param profileId Profile ID
-     * @return Result containing the new interaction count or error
+     * Remove AI profile from user favorites
      */
-    suspend fun incrementAIProfileInteractionCount(profileId: String): Result<Int>
+    suspend fun removeAIProfileFromFavorites(
+        userId: String,
+        profileId: String
+    ): Result<Unit>
+    
+    /**
+     * Get user's favorite AI profiles
+     */
+    suspend fun getUserFavoriteAIProfiles(
+        userId: String
+    ): Result<List<AIProfile>>
+    
+    /**
+     * Rate AI profile
+     */
+    suspend fun rateAIProfile(
+        profileId: String,
+        userId: String,
+        rating: Double,
+        feedback: String? = null
+    ): Result<Unit>
+    
+    /**
+     * Search AI profiles
+     */
+    suspend fun searchAIProfiles(
+        query: String,
+        limit: Int = 20
+    ): Result<List<AIProfile>>
     
     /**
      * Get recommended AI profiles for user
-     * @param userId User ID
-     * @param isPremiumUser Whether the user has premium subscription
-     * @param limit Maximum number of results
-     * @return Result containing list of recommended AI profiles or error
      */
-    suspend fun getRecommendedAIProfilesForUser(
+    suspend fun getRecommendedAIProfiles(
         userId: String,
-        isPremiumUser: Boolean,
         limit: Int = 5
     ): Result<List<AIProfile>>
     
     /**
-     * Add new response scripts to AI profile (admin only)
-     * @param profileId Profile ID
-     * @param triggerPhrase Trigger phrase
-     * @param responses List of possible responses
-     * @return Result containing the updated profile or error
+     * Check if user can access premium AI profiles
      */
-    suspend fun addAIProfileResponseScripts(
-        profileId: String,
-        triggerPhrase: String,
-        responses: List<String>
-    ): Result<AIProfile>
+    suspend fun canAccessPremiumAIProfiles(
+        userId: String
+    ): Result<Boolean>
+    
+    /**
+     * Increment AI profile interaction count
+     */
+    suspend fun incrementAIProfileInteractionCount(
+        profileId: String
+    ): Result<Unit>
 }
