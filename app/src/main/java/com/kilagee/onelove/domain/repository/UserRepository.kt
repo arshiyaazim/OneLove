@@ -1,9 +1,6 @@
 package com.kilagee.onelove.domain.repository
 
-import com.kilagee.onelove.domain.model.GeoPoint
-import com.kilagee.onelove.domain.model.Resource
 import com.kilagee.onelove.domain.model.User
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -12,77 +9,67 @@ import kotlinx.coroutines.flow.Flow
 interface UserRepository {
     
     /**
-     * Get current user profile
+     * Get the current user profile
      */
-    fun getCurrentUser(): Flow<Resource<User>>
+    suspend fun getCurrentUser(): Flow<Result<User>>
     
     /**
-     * Get user by ID
+     * Get a user by their ID
      */
-    fun getUserById(userId: String): Deferred<Resource<User>>
+    suspend fun getUserById(userId: String): Flow<Result<User>>
     
     /**
-     * Get users by IDs
+     * Search for users based on criteria
      */
-    fun getUsersByIds(userIds: List<String>): Flow<Resource<List<User>>>
+    suspend fun searchUsers(criteria: Map<String, Any>): Flow<Result<List<User>>>
     
     /**
-     * Get users by location proximity
+     * Get all users that match the current user's preferences
      */
-    fun getUsersByLocation(center: GeoPoint, radiusKm: Double): Flow<Resource<List<User>>>
+    suspend fun getPotentialMatches(limit: Int = 50): Flow<Result<List<User>>>
     
     /**
-     * Get users by interests
+     * Update the current user's profile
      */
-    fun getUsersByInterests(interests: List<String>): Flow<Resource<List<User>>>
+    suspend fun updateUserProfile(user: User): Flow<Result<Boolean>>
     
     /**
-     * Update current user profile
+     * Upload a profile photo
      */
-    fun updateUserProfile(user: User): Flow<Resource<User>>
+    suspend fun uploadProfilePhoto(photoUri: String): Flow<Result<String>>
     
     /**
-     * Update user location
+     * Set the user's online status
      */
-    fun updateUserLocation(location: GeoPoint): Flow<Resource<Unit>>
-    
-    /**
-     * Update user online status
-     */
-    fun updateOnlineStatus(isOnline: Boolean): Flow<Resource<Unit>>
-    
-    /**
-     * Upload profile photo
-     */
-    fun uploadProfilePhoto(photoUri: String): Flow<Resource<String>>
-    
-    /**
-     * Get verified users
-     */
-    fun getVerifiedUsers(): Flow<Resource<List<User>>>
-    
-    /**
-     * Get premium users
-     */
-    fun getPremiumUsers(): Flow<Resource<List<User>>>
-    
-    /**
-     * Search users by name or other criteria
-     */
-    fun searchUsers(query: String): Flow<Resource<List<User>>>
+    suspend fun setUserOnlineStatus(isOnline: Boolean): Flow<Result<Boolean>>
     
     /**
      * Block a user
      */
-    fun blockUser(userId: String): Flow<Resource<Unit>>
-    
-    /**
-     * Get blocked users
-     */
-    fun getBlockedUsers(): Flow<Resource<List<User>>>
+    suspend fun blockUser(userId: String): Flow<Result<Boolean>>
     
     /**
      * Unblock a user
      */
-    fun unblockUser(userId: String): Flow<Resource<Unit>>
+    suspend fun unblockUser(userId: String): Flow<Result<Boolean>>
+    
+    /**
+     * Report a user
+     */
+    suspend fun reportUser(userId: String, reason: String): Flow<Result<Boolean>>
+    
+    /**
+     * Get blocked users
+     */
+    suspend fun getBlockedUsers(): Flow<Result<List<User>>>
+    
+    /**
+     * Check if the current user has verified their profile
+     */
+    suspend fun isProfileVerified(): Flow<Result<Boolean>>
+    
+    /**
+     * Submit a verification request
+     */
+    suspend fun submitVerification(idPhotoUri: String, selfieUri: String): Flow<Result<Boolean>>
 }

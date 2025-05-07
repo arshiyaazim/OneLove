@@ -1,15 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- Exclude sensitive user data from cloud backup -->
-        <exclude domain="sharedpref" path="user_preferences.xml" />
-        <exclude domain="database" path="onelove_database" />
-        <exclude domain="file" path="images" />
+        <!-- TODO: Use <include> and <exclude> to control what is backed up.
+        <include .../>
+        <exclude .../>
+        -->
+        <exclude domain="sharedpref" path="device.xml"/>
+        <exclude domain="sharedpref" path="sensitive.xml"/>
+        <exclude domain="database" path="secure_data.db"/>
+        <exclude domain="root" path="cache/"/>
     </cloud-backup>
+    <!--
     <device-transfer>
-        <!-- Exclude sensitive user data from device transfer -->
-        <exclude domain="sharedpref" path="user_preferences.xml" />
-        <exclude domain="database" path="onelove_database" />
-        <exclude domain="file" path="images" />
+        <include .../>
+        <exclude .../>
     </device-transfer>
+    -->
 </data-extraction-rules>

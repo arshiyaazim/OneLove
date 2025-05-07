@@ -1,153 +1,148 @@
 package com.kilagee.onelove.data.model
 
+import android.os.Parcelable
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
-import com.google.firebase.firestore.ServerTimestamp
+import kotlinx.parcelize.Parcelize
 
 /**
- * Enum representing payment status
+ * Subscription data model
+ * Represents a user's subscription to premium services
  */
-enum class PaymentStatus {
-    PENDING, SUCCEEDED, FAILED, REFUNDED, CANCELED
-}
-
-/**
- * Enum representing payment type
- */
-enum class PaymentType {
-    SUBSCRIPTION, POINTS, FEATURE, OFFER, GIFT, OTHER
-}
-
-/**
- * Payment data class for Firestore mapping
- */
-data class Payment(
-    @DocumentId
-    val id: String = "",
-    
-    // User info
+@Parcelize
+data class Subscription(
+    @DocumentId val id: String = "",
     val userId: String = "",
-    val userEmail: String? = null,
-    
-    // Payment details
+    val planId: String = "",
+    val planName: String = "",
     val amount: Double = 0.0,
     val currency: String = "USD",
-    val status: PaymentStatus = PaymentStatus.PENDING,
-    val paymentType: PaymentType = PaymentType.OTHER,
-    val description: String = "",
-    
-    // Provider info
-    val provider: PaymentProvider = PaymentProvider.STRIPE,
-    val paymentIntentId: String? = null,
-    val paymentMethodId: String? = null,
-    val customerId: String? = null,
-    val invoiceId: String? = null,
-    val receiptUrl: String? = null,
-    val chargeId: String? = null,
-    
-    // Related entities
-    val subscriptionId: String? = null,
-    val offerId: String? = null,
-    val pointsAmount: Int? = null,
-    val featureId: String? = null,
-    
-    // Timestamps
-    @ServerTimestamp
-    val createdAt: Timestamp? = null,
-    
-    val processedAt: Timestamp? = null,
-    val refundedAt: Timestamp? = null,
+    val interval: String = INTERVAL_MONTHLY,
+    val status: String = STATUS_INACTIVE,
+    val startDate: Timestamp? = null,
+    val endDate: Timestamp? = null,
+    val trialEnd: Timestamp? = null,
     val canceledAt: Timestamp? = null,
+    val autoRenew: Boolean = true,
+    val stripeSubscriptionId: String? = null,
+    val stripeCustomerId: String? = null,
+    val lastPaymentStatus: String? = null,
+    val lastPaymentDate: Timestamp? = null,
+    val lastPaymentAmount: Double? = null,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null,
+    val metadata: Map<String, Any>? = null
+) : Parcelable {
     
-    // Additional info
-    val notes: String? = null,
-    val errorMessage: String? = null,
-    val metadata: Map<String, Any> = emptyMap()
-) {
-    /**
-     * Check if payment is pending
-     */
-    fun isPending(): Boolean {
-        return status == PaymentStatus.PENDING
-    }
+    // For Firestore data conversion
+    constructor() : this(id = "")
     
-    /**
-     * Check if payment succeeded
-     */
-    fun isSuccessful(): Boolean {
-        return status == PaymentStatus.SUCCEEDED
-    }
-    
-    /**
-     * Check if payment failed
-     */
-    fun isFailed(): Boolean {
-        return status == PaymentStatus.FAILED
-    }
-    
-    /**
-     * Get formatted amount
-     */
-    fun getFormattedAmount(): String {
-        val currencySymbol = when (currency) {
-            "USD" -> "$"
-            "EUR" -> "€"
-            "GBP" -> "£"
-            "JPY" -> "¥"
-            else -> currency
-        }
+    companion object {
+        const val INTERVAL_MONTHLY = "MONTHLY"
+        const val INTERVAL_YEARLY = "YEARLY"
         
-        val amountString = if (currency == "JPY") {
-            amount.toInt().toString()
-        } else {
-            String.format("%.2f", amount)
-        }
+        const val STATUS_ACTIVE = "ACTIVE"
+        const val STATUS_INACTIVE = "INACTIVE"
+        const val STATUS_PAST_DUE = "PAST_DUE"
+        const val STATUS_CANCELED = "CANCELED"
+        const val STATUS_TRIALING = "TRIALING"
+    }
+}
+
+/**
+ * SubscriptionPlan data model
+ * Represents a subscription plan that users can purchase
+ */
+@Parcelize
+data class SubscriptionPlan(
+    @DocumentId val id: String = "",
+    val name: String = "",
+    val description: String = "",
+    val features: List<String> = emptyList(),
+    val monthlyPrice: Double = 0.0,
+    val yearlyPrice: Double = 0.0,
+    val yearlyDiscount: Int = 0, // percentage
+    val currency: String = "USD",
+    val stripePriceIdMonthly: String = "",
+    val stripePriceIdYearly: String = "",
+    val trialDays: Int = 0,
+    val sortOrder: Int = 0,
+    val isActive: Boolean = true,
+    val icon: String? = null,
+    val pointsIncluded: Int = 0,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null
+) : Parcelable {
+    
+    // For Firestore data conversion
+    constructor() : this(id = "")
+}
+
+/**
+ * Transaction data model
+ * Represents a financial transaction in the app
+ */
+@Parcelize
+data class Transaction(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val type: String = TYPE_SUBSCRIPTION,
+    val amount: Double = 0.0,
+    val currency: String = "USD",
+    val description: String = "",
+    val status: String = STATUS_PENDING,
+    val paymentMethod: String? = null,
+    val paymentMethodDetails: Map<String, Any>? = null,
+    val timestamp: Timestamp? = null,
+    val subscriptionId: String? = null,
+    val pointsAmount: Int? = null,
+    val pointsPurchaseId: String? = null,
+    val paymentIntentId: String? = null,
+    val chargeId: String? = null,
+    val failureReason: String? = null,
+    val receiptUrl: String? = null,
+    val metadata: Map<String, Any>? = null
+) : Parcelable {
+    
+    // For Firestore data conversion
+    constructor() : this(id = "")
+    
+    companion object {
+        const val TYPE_SUBSCRIPTION = "SUBSCRIPTION"
+        const val TYPE_POINTS_PURCHASE = "POINTS_PURCHASE"
+        const val TYPE_POINTS_REDEMPTION = "POINTS_REDEMPTION"
+        const val TYPE_OFFER_PURCHASE = "OFFER_PURCHASE"
+        const val TYPE_FEATURE_PURCHASE = "FEATURE_PURCHASE"
         
-        return "$currencySymbol$amountString"
+        const val STATUS_PENDING = "PENDING"
+        const val STATUS_SUCCEEDED = "SUCCEEDED"
+        const val STATUS_FAILED = "FAILED"
+        const val STATUS_REFUNDED = "REFUNDED"
+        const val STATUS_CANCELED = "CANCELED"
     }
+}
+
+/**
+ * PointsPackage data model
+ * Represents a points package that users can purchase
+ */
+@Parcelize
+data class PointsPackage(
+    @DocumentId val id: String = "",
+    val name: String = "",
+    val pointsAmount: Int = 0,
+    val price: Double = 0.0,
+    val currency: String = "USD",
+    val stripePriceId: String = "",
+    val bonusPoints: Int = 0,
+    val description: String = "",
+    val isPopular: Boolean = false,
+    val isActive: Boolean = true,
+    val sortOrder: Int = 0,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null
+) : Parcelable {
     
-    /**
-     * Get formatted status
-     */
-    fun getFormattedStatus(): String {
-        return when (status) {
-            PaymentStatus.PENDING -> "Pending"
-            PaymentStatus.SUCCEEDED -> "Successful"
-            PaymentStatus.FAILED -> "Failed"
-            PaymentStatus.REFUNDED -> "Refunded"
-            PaymentStatus.CANCELED -> "Canceled"
-        }
-    }
-    
-    /**
-     * Get formatted payment type
-     */
-    fun getFormattedPaymentType(): String {
-        return when (paymentType) {
-            PaymentType.SUBSCRIPTION -> "Subscription"
-            PaymentType.POINTS -> "Points Purchase"
-            PaymentType.FEATURE -> "Feature Unlock"
-            PaymentType.OFFER -> "Offer Purchase"
-            PaymentType.GIFT -> "Gift"
-            PaymentType.OTHER -> "Other"
-        }
-    }
-    
-    /**
-     * Get formatted date
-     */
-    fun getFormattedDate(): String {
-        val date = createdAt?.toDate() ?: return ""
-        val formatter = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
-        return formatter.format(date)
-    }
-    
-    /**
-     * Get formatted time
-     */
-    fun getFormattedTime(): String {
-        val date = createdAt?.toDate() ?: return ""
-        val formatter = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
-        return formatter.format(date)
-    }
+    // For Firestore data conversion
+    constructor() : this(id = "")
 }

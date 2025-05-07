@@ -1,152 +1,90 @@
 package com.kilagee.onelove.data.model
 
+import android.os.Parcelable
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
-import com.google.firebase.firestore.ServerTimestamp
+import kotlinx.parcelize.Parcelize
 
 /**
- * Enum representing call type
+ * Call data model
+ * Represents a voice/video call between users
  */
-enum class CallType {
-    AUDIO, VIDEO
-}
-
-/**
- * Enum representing call status
- */
-enum class CallStatus {
-    INITIATED, RINGING, ONGOING, ENDED, MISSED, REJECTED, FAILED
-}
-
-/**
- * Call data class for Firestore mapping
- */
+@Parcelize
 data class Call(
-    @DocumentId
-    val id: String = "",
-    
-    // Participants
+    @DocumentId val id: String = "",
     val callerId: String = "",
-    val receiverId: String = "",
-    val callerName: String = "",
-    val receiverName: String = "",
-    val callerPhotoUrl: String? = null,
-    val receiverPhotoUrl: String? = null,
-    
-    // Call details
-    val callType: CallType = CallType.AUDIO,
-    val status: CallStatus = CallStatus.INITIATED,
-    val duration: Long = 0, // in seconds
-    val quality: Int = 0, // 0-5 rating
-    
-    // Technical details
-    val channelId: String = "",
-    val token: String? = null,
-    val signalProvider: String = "agora", // or "twilio", etc.
-    val serverRegion: String? = null,
-    val connectConfig: Map<String, Any> = emptyMap(),
-    
-    // Timestamps
-    @ServerTimestamp
-    val startedAt: Timestamp? = null,
-    
-    val endedAt: Timestamp? = null,
-    val answeredAt: Timestamp? = null,
-    
-    // Recording
-    val isRecorded: Boolean = false,
-    val recordingUrl: String? = null,
-    
-    // Related entities
-    val matchId: String? = null,
-    val chatId: String? = null,
-    val offerId: String? = null,
-    
-    // Costs
+    val recipientId: String = "",
+    val matchId: String = "",
+    val callType: String = TYPE_VIDEO,
+    val status: String = STATUS_PENDING,
+    val startTime: Timestamp? = null,
+    val endTime: Timestamp? = null,
+    val duration: Int = 0, // in seconds
+    val roomId: String = "",
+    val offerSDP: String? = null,
+    val answerSDP: String? = null,
+    val callerIceCandidates: List<String> = emptyList(),
+    val recipientIceCandidates: List<String> = emptyList(),
     val pointsCost: Int = 0,
-    val pointsCharged: Boolean = false,
+    val pointsReward: Int = 0,
+    val callRating: Int = 0,
+    val callFeedback: String? = null,
+    val rejectionReason: String? = null,
+    val failureReason: String? = null,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null,
+    val metadata: Map<String, Any>? = null
+) : Parcelable {
     
-    // Additional data
-    val metadata: Map<String, Any> = emptyMap()
-) {
-    /**
-     * Check if call is active
-     */
-    fun isActive(): Boolean {
-        return status == CallStatus.INITIATED || 
-               status == CallStatus.RINGING || 
-               status == CallStatus.ONGOING
-    }
+    // For Firestore data conversion
+    constructor() : this(id = "")
     
-    /**
-     * Check if call was completed successfully
-     */
-    fun isCompleted(): Boolean {
-        return status == CallStatus.ENDED && duration > 0
-    }
-    
-    /**
-     * Check if call was missed
-     */
-    fun isMissed(): Boolean {
-        return status == CallStatus.MISSED || 
-               (status == CallStatus.ENDED && duration == 0L)
-    }
-    
-    /**
-     * Get formatted call type
-     */
-    fun getFormattedCallType(): String {
-        return when (callType) {
-            CallType.AUDIO -> "Audio Call"
-            CallType.VIDEO -> "Video Call"
-        }
-    }
-    
-    /**
-     * Get formatted call status
-     */
-    fun getFormattedStatus(): String {
-        return when (status) {
-            CallStatus.INITIATED -> "Calling..."
-            CallStatus.RINGING -> "Ringing..."
-            CallStatus.ONGOING -> "Ongoing"
-            CallStatus.ENDED -> "Ended"
-            CallStatus.MISSED -> "Missed"
-            CallStatus.REJECTED -> "Rejected"
-            CallStatus.FAILED -> "Failed"
-        }
-    }
-    
-    /**
-     * Get formatted duration
-     */
-    fun getFormattedDuration(): String {
-        val hours = duration / 3600
-        val minutes = (duration % 3600) / 60
-        val seconds = duration % 60
+    companion object {
+        const val TYPE_AUDIO = "AUDIO"
+        const val TYPE_VIDEO = "VIDEO"
         
-        return when {
-            hours > 0 -> String.format("%02d:%02d:%02d", hours, minutes, seconds)
-            else -> String.format("%02d:%02d", minutes, seconds)
-        }
+        const val STATUS_PENDING = "PENDING"
+        const val STATUS_CONNECTING = "CONNECTING"
+        const val STATUS_RINGING = "RINGING"
+        const val STATUS_CONNECTED = "CONNECTED"
+        const val STATUS_COMPLETED = "COMPLETED"
+        const val STATUS_MISSED = "MISSED"
+        const val STATUS_REJECTED = "REJECTED"
+        const val STATUS_FAILED = "FAILED"
+        const val STATUS_BUSY = "BUSY"
+        const val STATUS_CANCELED = "CANCELED"
     }
+}
+
+/**
+ * CallSchedule data model
+ * Represents a scheduled future call between users
+ */
+@Parcelize
+data class CallSchedule(
+    @DocumentId val id: String = "",
+    val userId1: String = "",
+    val userId2: String = "",
+    val matchId: String = "",
+    val callType: String = Call.TYPE_VIDEO,
+    val scheduledTime: Timestamp? = null,
+    val reminderSent: Boolean = false,
+    val reminderSentAt: Timestamp? = null,
+    val status: String = STATUS_SCHEDULED,
+    val callId: String? = null, // Linked to actual call when it happens
+    val notes: String? = null,
+    val pointsCost: Int = 0,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null
+) : Parcelable {
     
-    /**
-     * Get formatted timestamp
-     */
-    fun getFormattedTime(): String {
-        val date = startedAt?.toDate() ?: return ""
-        val formatter = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
-        return formatter.format(date)
-    }
+    // For Firestore data conversion
+    constructor() : this(id = "")
     
-    /**
-     * Get formatted date
-     */
-    fun getFormattedDate(): String {
-        val date = startedAt?.toDate() ?: return ""
-        val formatter = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
-        return formatter.format(date)
+    companion object {
+        const val STATUS_SCHEDULED = "SCHEDULED"
+        const val STATUS_COMPLETED = "COMPLETED"
+        const val STATUS_CANCELED = "CANCELED"
+        const val STATUS_MISSED = "MISSED"
     }
 }

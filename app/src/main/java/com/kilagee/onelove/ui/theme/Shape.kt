@@ -6,12 +6,18 @@ import androidx.compose.ui.unit.dp
 
 val Shapes = Shapes(
     small = RoundedCornerShape(4.dp),
-    medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(20.dp)
+    medium = RoundedCornerShape(8.dp),
+    large = RoundedCornerShape(16.dp)
 )
 
 // Additional custom shapes
-val CardShape = RoundedCornerShape(16.dp)
-val ButtonShape = RoundedCornerShape(50.dp) // Pill shape
-val InputFieldShape = RoundedCornerShape(12.dp)
-val ProfileImageShape = RoundedCornerShape(percent = 50) // Circle
+val BottomSheetShape = RoundedCornerShape(
+    topStart = 20.dp,
+    topEnd = 20.dp,
+    bottomStart = 0.dp,
+    bottomEnd = 0.dp
+)
+
+val CardShape = RoundedCornerShape(12.dp)
+val ButtonShape = RoundedCornerShape(50.dp)  // Pill shape
+val ProfileImageShape = RoundedCornerShape(percent = 50)  // Circle

@@ -1,182 +1,90 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base application theme -->
-    <style name="Theme.OneLove" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <!-- Primary brand color -->
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryVariant">@color/primary_variant</item>
-        <item name="colorOnPrimary">@color/on_primary</item>
-        
-        <!-- Secondary brand color -->
-        <item name="colorSecondary">@color/secondary</item>
-        <item name="colorSecondaryVariant">@color/secondary_variant</item>
-        <item name="colorOnSecondary">@color/on_secondary</item>
-        
-        <!-- Background colors -->
-        <item name="android:colorBackground">@color/background</item>
-        <item name="colorSurface">@color/surface</item>
-        <item name="colorOnBackground">@color/on_background</item>
-        <item name="colorOnSurface">@color/on_surface</item>
-        
-        <!-- Error colors -->
-        <item name="colorError">@color/error</item>
-        <item name="colorOnError">@color/on_error</item>
-        
-        <!-- Status bar and navigation bar -->
-        <item name="android:statusBarColor">@color/primary_variant</item>
-        <item name="android:navigationBarColor">@color/primary_variant</item>
-        
-        <!-- Window animations -->
-        <item name="android:windowActivityTransitions">true</item>
-        <item name="android:windowEnterTransition">@android:transition/fade</item>
-        <item name="android:windowExitTransition">@android:transition/fade</item>
-        
-        <!-- Typography -->
-        <item name="textAppearanceHeadline1">@style/TextAppearance.OneLove.Headline1</item>
-        <item name="textAppearanceHeadline2">@style/TextAppearance.OneLove.Headline2</item>
-        <item name="textAppearanceHeadline3">@style/TextAppearance.OneLove.Headline3</item>
-        <item name="textAppearanceHeadline4">@style/TextAppearance.OneLove.Headline4</item>
-        <item name="textAppearanceHeadline5">@style/TextAppearance.OneLove.Headline5</item>
-        <item name="textAppearanceHeadline6">@style/TextAppearance.OneLove.Headline6</item>
-        <item name="textAppearanceSubtitle1">@style/TextAppearance.OneLove.Subtitle1</item>
-        <item name="textAppearanceSubtitle2">@style/TextAppearance.OneLove.Subtitle2</item>
-        <item name="textAppearanceBody1">@style/TextAppearance.OneLove.Body1</item>
-        <item name="textAppearanceBody2">@style/TextAppearance.OneLove.Body2</item>
-        <item name="textAppearanceCaption">@style/TextAppearance.OneLove.Caption</item>
-        <item name="textAppearanceButton">@style/TextAppearance.OneLove.Button</item>
-        <item name="textAppearanceOverline">@style/TextAppearance.OneLove.Overline</item>
+    <!-- TextStyles -->
+    <style name="TextHeadline" parent="TextAppearance.Material3.HeadlineLarge">
+        <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
     
-    <!-- Typography styles -->
-    <style name="TextAppearance.OneLove.Headline1" parent="TextAppearance.MaterialComponents.Headline1">
-        <item name="fontFamily">sans-serif-light</item>
-        <item name="android:fontFamily">sans-serif-light</item>
-        <item name="android:textSize">96sp</item>
+    <style name="TextTitle" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
     
-    <style name="TextAppearance.OneLove.Headline2" parent="TextAppearance.MaterialComponents.Headline2">
-        <item name="fontFamily">sans-serif-light</item>
-        <item name="android:fontFamily">sans-serif-light</item>
-        <item name="android:textSize">60sp</item>
+    <style name="TextBody" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textColor">?attr/colorOnSurface</item>
     </style>
     
-    <style name="TextAppearance.OneLove.Headline3" parent="TextAppearance.MaterialComponents.Headline3">
-        <item name="fontFamily">sans-serif</item>
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textSize">48sp</item>
+    <style name="TextCaption" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
     </style>
     
-    <style name="TextAppearance.OneLove.Headline4" parent="TextAppearance.MaterialComponents.Headline4">
-        <item name="fontFamily">sans-serif</item>
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textSize">34sp</item>
-    </style>
-    
-    <style name="TextAppearance.OneLove.Headline5" parent="TextAppearance.MaterialComponents.Headline5">
-        <item name="fontFamily">sans-serif</item>
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textSize">24sp</item>
-    </style>
-    
-    <style name="TextAppearance.OneLove.Headline6" parent="TextAppearance.MaterialComponents.Headline6">
-        <item name="fontFamily">sans-serif-medium</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:textSize">20sp</item>
-    </style>
-    
-    <style name="TextAppearance.OneLove.Subtitle1" parent="TextAppearance.MaterialComponents.Subtitle1">
-        <item name="fontFamily">sans-serif</item>
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textSize">16sp</item>
-    </style>
-    
-    <style name="TextAppearance.OneLove.Subtitle2" parent="TextAppearance.MaterialComponents.Subtitle2">
-        <item name="fontFamily">sans-serif-medium</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:textSize">14sp</item>
-    </style>
-    
-    <style name="TextAppearance.OneLove.Body1" parent="TextAppearance.MaterialComponents.Body1">
-        <item name="fontFamily">sans-serif</item>
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textSize">16sp</item>
-    </style>
-    
-    <style name="TextAppearance.OneLove.Body2" parent="TextAppearance.MaterialComponents.Body2">
-        <item name="fontFamily">sans-serif</item>
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textSize">14sp</item>
-    </style>
-    
-    <style name="TextAppearance.OneLove.Caption" parent="TextAppearance.MaterialComponents.Caption">
-        <item name="fontFamily">sans-serif</item>
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textSize">12sp</item>
-    </style>
-    
-    <style name="TextAppearance.OneLove.Button" parent="TextAppearance.MaterialComponents.Button">
-        <item name="fontFamily">sans-serif-medium</item>
-        <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:textSize">14sp</item>
+    <style name="TextButton" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:textColor">?attr/colorPrimary</item>
         <item name="android:textAllCaps">false</item>
     </style>
     
-    <style name="TextAppearance.OneLove.Overline" parent="TextAppearance.MaterialComponents.Overline">
-        <item name="fontFamily">sans-serif</item>
-        <item name="android:fontFamily">sans-serif</item>
-        <item name="android:textSize">10sp</item>
-        <item name="android:textAllCaps">true</item>
-    </style>
-    
     <!-- Button styles -->
-    <style name="Widget.OneLove.Button" parent="Widget.MaterialComponents.Button">
-        <item name="android:textAppearance">@style/TextAppearance.OneLove.Button</item>
-        <item name="shapeAppearance">@style/ShapeAppearance.OneLove.SmallComponent</item>
-        <item name="android:paddingLeft">24dp</item>
-        <item name="android:paddingRight">24dp</item>
+    <style name="Button.Primary" parent="Widget.Material3.Button">
+        <item name="android:textColor">?attr/colorOnPrimary</item>
+        <item name="android:paddingStart">24dp</item>
+        <item name="android:paddingEnd">24dp</item>
         <item name="android:paddingTop">12dp</item>
         <item name="android:paddingBottom">12dp</item>
-        <item name="android:stateListAnimator">@null</item>
-        <item name="backgroundTint">@color/primary</item>
+        <item name="cornerRadius">24dp</item>
     </style>
     
-    <style name="Widget.OneLove.Button.TextButton" parent="Widget.MaterialComponents.Button.TextButton">
-        <item name="android:textAppearance">@style/TextAppearance.OneLove.Button</item>
-        <item name="android:paddingLeft">16dp</item>
-        <item name="android:paddingRight">16dp</item>
+    <style name="Button.Secondary" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:textColor">?attr/colorPrimary</item>
+        <item name="strokeColor">?attr/colorPrimary</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:paddingStart">24dp</item>
+        <item name="android:paddingEnd">24dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
+        <item name="cornerRadius">24dp</item>
+    </style>
+    
+    <style name="Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">?attr/colorPrimary</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
         <item name="android:paddingTop">8dp</item>
         <item name="android:paddingBottom">8dp</item>
     </style>
     
-    <style name="Widget.OneLove.Button.OutlinedButton" parent="Widget.MaterialComponents.Button.OutlinedButton">
-        <item name="android:textAppearance">@style/TextAppearance.OneLove.Button</item>
-        <item name="shapeAppearance">@style/ShapeAppearance.OneLove.SmallComponent</item>
-        <item name="android:paddingLeft">24dp</item>
-        <item name="android:paddingRight">24dp</item>
-        <item name="android:paddingTop">12dp</item>
-        <item name="android:paddingBottom">12dp</item>
-    </style>
-    
-    <!-- Shape Appearances -->
-    <style name="ShapeAppearance.OneLove.SmallComponent" parent="ShapeAppearance.MaterialComponents.SmallComponent">
-        <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">8dp</item>
-    </style>
-    
-    <style name="ShapeAppearance.OneLove.MediumComponent" parent="ShapeAppearance.MaterialComponents.MediumComponent">
-        <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">8dp</item>
-    </style>
-    
-    <style name="ShapeAppearance.OneLove.LargeComponent" parent="ShapeAppearance.MaterialComponents.LargeComponent">
-        <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">8dp</item>
-    </style>
-    
     <!-- Card styles -->
-    <style name="Widget.OneLove.CardView" parent="Widget.MaterialComponents.CardView">
+    <style name="Card" parent="Widget.Material3.CardView.Elevated">
+        <item name="cardCornerRadius">12dp</item>
         <item name="cardElevation">2dp</item>
-        <item name="cardCornerRadius">8dp</item>
         <item name="contentPadding">16dp</item>
+    </style>
+    
+    <style name="Card.Profile" parent="Card">
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">4dp</item>
+        <item name="contentPadding">0dp</item>
+    </style>
+    
+    <!-- Input styles -->
+    <style name="TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxCornerRadiusBottomEnd">8dp</item>
+        <item name="boxCornerRadiusBottomStart">8dp</item>
+        <item name="boxCornerRadiusTopEnd">8dp</item>
+        <item name="boxCornerRadiusTopStart">8dp</item>
+        <item name="boxStrokeColor">?attr/colorPrimary</item>
+        <item name="hintTextColor">?attr/colorPrimary</item>
+    </style>
+    
+    <!-- Dialog styles -->
+    <style name="DialogTheme" parent="ThemeOverlay.Material3.Dialog.Alert">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowMinWidthMajor">80%</item>
+        <item name="android:windowMinWidthMinor">80%</item>
+        <item name="android:backgroundDimAmount">0.5</item>
+    </style>
+    
+    <!-- BottomSheet styles -->
+    <style name="BottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
     </style>
 </resources>

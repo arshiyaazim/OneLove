@@ -1,82 +1,63 @@
 package com.kilagee.onelove.domain.repository
 
-import com.kilagee.onelove.domain.model.AIMessage
 import com.kilagee.onelove.domain.model.AIProfile
-import com.kilagee.onelove.domain.model.AIResponseType
+import com.kilagee.onelove.domain.model.Message
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository interface for accessing AI profiles data
+ * Repository interface for AI Profile operations
  */
 interface AIProfileRepository {
     
     /**
-     * Gets all AI profiles
+     * Get all AI profiles
      */
-    fun getAllAIProfiles(): Flow<List<AIProfile>>
+    suspend fun getAllAIProfiles(includeInactive: Boolean = false): Flow<Result<List<AIProfile>>>
     
     /**
-     * Gets AI profiles matching the given criteria
+     * Get AI profiles filtered by category
      */
-    fun getAIProfiles(
-        gender: String? = null,
-        minAge: Int? = null,
-        maxAge: Int? = null,
-        personality: String? = null,
-        limit: Int = 10
-    ): Flow<List<AIProfile>>
+    suspend fun getAIProfilesByCategory(category: String): Flow<Result<List<AIProfile>>>
     
     /**
-     * Gets a single AI profile by ID
+     * Get an AI profile by ID
      */
-    fun getAIProfileById(profileId: String): Flow<AIProfile?>
+    suspend fun getAIProfileById(profileId: String): Flow<Result<AIProfile>>
     
     /**
-     * Gets featured AI profiles for the home screen
+     * Get recommended AI profiles for a user
      */
-    fun getFeaturedAIProfiles(limit: Int = 5): Flow<List<AIProfile>>
+    suspend fun getRecommendedAIProfiles(userId: String, limit: Int = 5): Flow<Result<List<AIProfile>>>
     
     /**
-     * Creates a new AI profile
+     * Send a message to an AI profile and get a response
      */
-    suspend fun createAIProfile(profile: AIProfile): Result<AIProfile>
+    suspend fun sendMessageToAIProfile(
+        profileId: String, 
+        message: String
+    ): Flow<Result<Message>>
     
     /**
-     * Updates an existing AI profile
+     * Get conversation history with an AI profile
      */
-    suspend fun updateAIProfile(profile: AIProfile): Result<AIProfile>
+    suspend fun getAIConversationHistory(
+        profileId: String,
+        limit: Int = 50,
+        startAfter: String? = null
+    ): Flow<Result<List<Message>>>
     
     /**
-     * Deletes an AI profile
+     * Rate an AI profile
      */
-    suspend fun deleteAIProfile(profileId: String): Result<Boolean>
+    suspend fun rateAIProfile(profileId: String, rating: Double): Flow<Result<Boolean>>
     
     /**
-     * Gets all messages in a conversation with an AI profile
+     * Check if a user can access premium AI profiles
      */
-    fun getConversationMessages(conversationId: String): Flow<List<AIMessage>>
+    suspend fun canAccessPremiumAIProfiles(userId: String): Flow<Result<Boolean>>
     
     /**
-     * Sends a message to an AI profile and gets a response
+     * Clear conversation history with an AI profile
      */
-    suspend fun sendMessageToAI(
-        conversationId: String,
-        message: String,
-        preferredResponseType: AIResponseType? = null
-    ): Result<AIMessage>
-    
-    /**
-     * Marks all messages in a conversation as read
-     */
-    suspend fun markConversationAsRead(conversationId: String): Result<Boolean>
-    
-    /**
-     * Gets all conversations for a user
-     */
-    fun getUserAIConversations(userId: String): Flow<List<Pair<AIProfile, AIMessage?>>>
-    
-    /**
-     * Creates initial AI profiles (for preloading)
-     */
-    suspend fun createInitialAIProfiles(): Result<Int>
+    suspend fun clearAIConversationHistory(profileId: String): Flow<Result<Boolean>>
 }

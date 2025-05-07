@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- Exclude sensitive user data from auto-backup -->
-    <exclude domain="sharedpref" path="user_preferences.xml" />
-    <exclude domain="database" path="onelove_database" />
-    <exclude domain="file" path="images" />
+    <!-- Exclude specific shared preferences that contain sensitive user information -->
+    <exclude domain="sharedpref" path="auth_prefs.xml"/>
+    <exclude domain="sharedpref" path="user_credentials.xml"/>
+    <exclude domain="sharedpref" path="payment_info.xml"/>
+    
+    <!-- Exclude sensitive databases -->
+    <exclude domain="database" path="user_data.db"/>
+    <exclude domain="database" path="chat_messages.db"/>
+    
+    <!-- Exclude cached data -->
+    <exclude domain="external" path="cache/"/>
+    <exclude domain="root" path="cache/"/>
 </full-backup-content>
