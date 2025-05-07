@@ -1,244 +1,138 @@
 package com.kilagee.onelove.data.model
 
 import android.os.Parcelable
-import com.google.firebase.Timestamp
 import kotlinx.parcelize.Parcelize
 import java.util.Date
 
 /**
- * User model representing a user in the application
+ * Data class representing a user in the application
  */
 @Parcelize
 data class User(
-    val id: String = "",
-    val email: String = "",
-    val displayName: String = "",
-    val phoneNumber: String = "",
-    val photoUrl: String = "",
-    val bio: String = "",
-    val birthDate: Date? = null,
-    val gender: Gender = Gender.UNSPECIFIED,
-    val interestedIn: List<Gender> = emptyList(),
-    val location: GeoPoint? = null,
-    val lastActive: Date = Date(),
-    val isOnline: Boolean = false,
-    val verificationStatus: VerificationStatus = VerificationStatus.NONE,
-    val verificationTiers: List<VerificationTier> = emptyList(),
-    val subscriptionType: SubscriptionType = SubscriptionType.FREE,
-    val subscriptionExpiryDate: Date? = null,
-    val pointsBalance: Int = 0,
-    val matchPreferences: MatchPreferences = MatchPreferences(),
-    val blockedUserIds: List<String> = emptyList(),
-    val reportedUserIds: List<String> = emptyList(),
-    val createdAt: Date = Date(),
-    val updatedAt: Date = Date(),
-    val isProfileComplete: Boolean = false,
-    val profilePhotos: List<String> = emptyList(),
-    val interests: List<String> = emptyList(),
-    val lookingFor: List<RelationshipType> = emptyList(),
+    val id: String,
+    val name: String,
+    val email: String? = null,
+    val phoneNumber: String? = null,
+    val age: Int,
+    val gender: String,
+    val bio: String? = null,
     val height: Int? = null, // in cm
-    val occupation: String = "",
-    val education: String = "",
-    val ethnicity: String = "",
-    val religion: String = "",
-    val languages: List<String> = emptyList(),
-    val relationshipStatus: RelationshipStatus = RelationshipStatus.SINGLE,
-    val hasChildren: Boolean? = null,
-    val wantsChildren: Boolean? = null,
-    val drinking: HabitFrequency = HabitFrequency.UNSPECIFIED,
-    val smoking: HabitFrequency = HabitFrequency.UNSPECIFIED,
-    val zodiacSign: ZodiacSign = ZodiacSign.UNSPECIFIED,
-    val prompts: List<ProfilePrompt> = emptyList(),
-    val distanceUnit: DistanceUnit = DistanceUnit.KILOMETERS,
-    val fcmTokens: List<String> = emptyList(),
-    val isAdmin: Boolean = false,
-    val moderationStatus: ModerationStatus = ModerationStatus.APPROVED,
-    val streak: Int = 0, // Days of consecutive app usage
-    val profileVisitors: List<String> = emptyList(),
-    val lastProfileVisitorsUpdatedAt: Date = Date()
+    val occupation: String? = null,
+    val education: String? = null,
+    val interests: List<String> = emptyList(),
+    val profileImageUrls: List<String> = emptyList(),
+    val location: Location? = null,
+    val preferences: UserPreferences? = null,
+    val isVerified: Boolean = false,
+    val verificationLevel: Int = 0, // 0: None, 1: Email, 2: Phone, 3: ID, 4: Social Media
+    val isPremium: Boolean = false,
+    val premiumTier: String? = null, // "basic", "gold", "platinum"
+    val premiumExpiresAt: Date? = null,
+    val createdAt: Date,
+    val lastActive: Date? = null,
+    val lastLocationUpdate: Date? = null,
+    val points: Int = 0,
+    val isOnline: Boolean = false,
+    val blockedUsers: List<String> = emptyList(),
+    val profileSettings: ProfileSettings? = null,
+    val notificationSettings: NotificationSettings? = null,
+    val privacySettings: PrivacySettings? = null,
+    val profileCompletion: Int = 0, // Percentage of profile completion
+    val socialLinks: Map<String, String> = emptyMap() // platform -> url
 ) : Parcelable
 
 /**
- * Gender enum representing gender options
+ * Data class representing a user's location
  */
 @Parcelize
-enum class Gender : Parcelable {
-    MALE,
-    FEMALE,
-    NON_BINARY,
-    OTHER,
-    UNSPECIFIED;
-    
-    companion object {
-        fun fromString(value: String): Gender {
-            return try {
-                valueOf(value.uppercase())
-            } catch (e: IllegalArgumentException) {
-                UNSPECIFIED
-            }
-        }
-    }
-}
-
-/**
- * GeoPoint representing a location
- */
-@Parcelize
-data class GeoPoint(
+data class Location(
     val latitude: Double,
-    val longitude: Double
-) : Parcelable {
-    constructor(firebaseGeoPoint: com.google.firebase.firestore.GeoPoint) :
-            this(firebaseGeoPoint.latitude, firebaseGeoPoint.longitude)
-            
-    fun toFirebaseGeoPoint(): com.google.firebase.firestore.GeoPoint {
-        return com.google.firebase.firestore.GeoPoint(latitude, longitude)
-    }
-}
-
-/**
- * Verification status enum
- */
-@Parcelize
-enum class VerificationStatus : Parcelable {
-    NONE,
-    PENDING,
-    VERIFIED,
-    REJECTED
-}
-
-/**
- * Verification tier enum
- */
-@Parcelize
-enum class VerificationTier : Parcelable {
-    PHOTO,
-    ID,
-    BACKGROUND_CHECK,
-    PHONE,
-    EMAIL,
-    EDUCATION,
-    WORK,
-    SOCIAL_MEDIA,
-    CELEBRITY
-}
-
-/**
- * Subscription type enum
- */
-@Parcelize
-enum class SubscriptionType : Parcelable {
-    FREE,
-    BASIC,
-    PREMIUM,
-    VIP
-}
-
-/**
- * Subscription period enum
- */
-@Parcelize
-enum class SubscriptionPeriod : Parcelable {
-    MONTHLY,
-    QUARTERLY,
-    YEARLY
-}
-
-/**
- * Match preferences
- */
-@Parcelize
-data class MatchPreferences(
-    val ageRange: IntRange = 18..40,
-    val distanceRange: Int = 50, // in km or miles based on distanceUnit
-    val genderPreferences: List<Gender> = emptyList(),
-    val relationshipTypes: List<RelationshipType> = emptyList()
+    val longitude: Double,
+    val city: String? = null,
+    val country: String? = null,
+    val formattedAddress: String? = null,
+    val lastUpdated: Date? = null
 ) : Parcelable
 
 /**
- * Relationship type enum
+ * Data class representing user preferences for discovery
  */
 @Parcelize
-enum class RelationshipType : Parcelable {
-    DATING,
-    RELATIONSHIP,
-    MARRIAGE,
-    FRIENDSHIP,
-    CASUAL,
-    UNSPECIFIED
-}
-
-/**
- * Relationship status enum
- */
-@Parcelize
-enum class RelationshipStatus : Parcelable {
-    SINGLE,
-    DIVORCED,
-    SEPARATED,
-    WIDOWED,
-    COMPLICATED,
-    UNSPECIFIED
-}
-
-/**
- * Habit frequency enum
- */
-@Parcelize
-enum class HabitFrequency : Parcelable {
-    NEVER,
-    RARELY,
-    SOMETIMES,
-    OFTEN,
-    REGULARLY,
-    UNSPECIFIED
-}
-
-/**
- * Zodiac sign enum
- */
-@Parcelize
-enum class ZodiacSign : Parcelable {
-    ARIES,
-    TAURUS,
-    GEMINI,
-    CANCER,
-    LEO,
-    VIRGO,
-    LIBRA,
-    SCORPIO,
-    SAGITTARIUS,
-    CAPRICORN,
-    AQUARIUS,
-    PISCES,
-    UNSPECIFIED
-}
-
-/**
- * Profile prompt
- */
-@Parcelize
-data class ProfilePrompt(
-    val question: String,
-    val answer: String
+data class UserPreferences(
+    val minAge: Int = 18,
+    val maxAge: Int = 99,
+    val maxDistance: Int = 50, // in km
+    val genderPreferences: List<String> = emptyList(),
+    val showMe: Boolean = true,
+    val autoPlayVideos: Boolean = true,
+    val showOnlineStatus: Boolean = true,
+    val showLastActive: Boolean = true
 ) : Parcelable
 
 /**
- * Distance unit enum
+ * Data class representing profile settings
  */
 @Parcelize
-enum class DistanceUnit : Parcelable {
-    KILOMETERS,
-    MILES
-}
+data class ProfileSettings(
+    val showAge: Boolean = true,
+    val showDistance: Boolean = true,
+    val showLastActive: Boolean = true,
+    val showOnlineStatus: Boolean = true
+) : Parcelable
 
 /**
- * Moderation status enum
+ * Data class representing notification settings
  */
 @Parcelize
-enum class ModerationStatus : Parcelable {
-    PENDING_REVIEW,
-    APPROVED,
-    RESTRICTED,
-    BANNED
+data class NotificationSettings(
+    val newMatches: Boolean = true,
+    val messages: Boolean = true,
+    val messageReplies: Boolean = true,
+    val superLikes: Boolean = true,
+    val appUpdates: Boolean = true,
+    val offers: Boolean = true,
+    val emailNotifications: Boolean = true,
+    val pushNotifications: Boolean = true,
+    val callNotifications: Boolean = true,
+    val vibrate: Boolean = true,
+    val sound: Boolean = true
+) : Parcelable
+
+/**
+ * Data class representing privacy settings
+ */
+@Parcelize
+data class PrivacySettings(
+    val showMeInDiscovery: Boolean = true,
+    val showOnlineStatus: Boolean = true,
+    val showReadReceipts: Boolean = true,
+    val showLastActive: Boolean = true,
+    val allowLocationTracking: Boolean = true,
+    val dataSharing: Boolean = true,
+    val allowAnalytics: Boolean = true
+) : Parcelable
+
+/**
+ * Data class representing actions taken on a user
+ */
+@Parcelize
+data class UserAction(
+    val userId: String,
+    val actionType: ActionType,
+    val timestamp: Date,
+    val note: String? = null
+) : Parcelable
+
+/**
+ * Enum representing types of actions that can be taken on users
+ */
+@Parcelize
+enum class ActionType : Parcelable {
+    LIKE,
+    SUPER_LIKE,
+    PASS,
+    BLOCK,
+    REPORT,
+    MESSAGE,
+    MATCH
 }

@@ -5,31 +5,25 @@ import kotlinx.parcelize.Parcelize
 import java.util.Date
 
 /**
- * Call model representing a call between users
+ * Data class representing a call between users
  */
 @Parcelize
 data class Call(
-    val id: String = "",
-    val matchId: String = "",
-    val callerId: String = "",
-    val receiverId: String = "",
-    val type: CallType = CallType.AUDIO,
-    val status: CallStatus = CallStatus.RINGING,
+    val id: String,
+    val callerId: String,
+    val calleeId: String,
+    val type: CallType,
+    val status: CallStatus,
     val startTime: Date? = null,
     val endTime: Date? = null,
-    val duration: Long = 0, // Duration in seconds
-    val endReason: CallEndReason = CallEndReason.NORMAL,
-    val quality: Int = 0, // 1-5 rating
-    val metadata: Map<String, String> = emptyMap(),
-    val screenshotUrl: String = "", // For video calls
-    val isRecorded: Boolean = false,
-    val recordingUrl: String = "",
-    val createdAt: Date = Date(),
-    val updatedAt: Date = Date()
+    val duration: Long = 0, // in seconds
+    val isIncoming: Boolean = false,
+    val quality: CallQuality? = null,
+    val metadata: Map<String, String> = emptyMap()
 ) : Parcelable
 
 /**
- * Call type enum
+ * Enum representing call type
  */
 @Parcelize
 enum class CallType : Parcelable {
@@ -38,83 +32,142 @@ enum class CallType : Parcelable {
 }
 
 /**
- * Call status enum
+ * Enum representing call status
  */
 @Parcelize
 enum class CallStatus : Parcelable {
     RINGING,
     CONNECTING,
     CONNECTED,
-    DECLINED,
+    ENDED,
     MISSED,
+    REJECTED,
+    BUSY,
+    FAILED
+}
+
+/**
+ * Enum representing call quality
+ */
+@Parcelize
+enum class CallQuality : Parcelable {
+    EXCELLENT,
+    GOOD,
+    FAIR,
+    POOR,
+    BAD
+}
+
+/**
+ * Data class representing a call offer
+ */
+@Parcelize
+data class CallOffer(
+    val id: String,
+    val callId: String,
+    val senderId: String,
+    val receiverId: String,
+    val type: CallType,
+    val createdAt: Date,
+    val expiresAt: Date, // When the offer expires
+    val sdp: String, // Session Description Protocol
+    val status: CallOfferStatus,
+    val metadata: Map<String, String> = emptyMap()
+) : Parcelable
+
+/**
+ * Enum representing call offer status
+ */
+@Parcelize
+enum class CallOfferStatus : Parcelable {
+    PENDING,
+    ACCEPTED,
+    REJECTED,
+    EXPIRED,
+    CANCELED
+}
+
+/**
+ * Data class representing call session details
+ */
+@Parcelize
+data class CallSession(
+    val id: String,
+    val callId: String,
+    val participants: List<CallParticipant>,
+    val roomId: String? = null, // For group calls
+    val startTime: Date,
+    val endTime: Date? = null,
+    val status: CallSessionStatus,
+    val activeParticipants: Int = 0,
+    val settings: CallSettings? = null
+) : Parcelable
+
+/**
+ * Data class representing a call participant
+ */
+@Parcelize
+data class CallParticipant(
+    val userId: String,
+    val joinTime: Date? = null,
+    val leaveTime: Date? = null,
+    val status: ParticipantStatus = ParticipantStatus.IDLE,
+    val hasAudio: Boolean = true,
+    val hasVideo: Boolean = true,
+    val isMuted: Boolean = false,
+    val isVideoEnabled: Boolean = true,
+    val isSpeaking: Boolean = false,
+    val connectionQuality: CallQuality? = null
+) : Parcelable
+
+/**
+ * Enum representing participant status
+ */
+@Parcelize
+enum class ParticipantStatus : Parcelable {
+    IDLE,
+    CONNECTING,
+    CONNECTED,
+    RECONNECTING,
+    DISCONNECTED
+}
+
+/**
+ * Enum representing call session status
+ */
+@Parcelize
+enum class CallSessionStatus : Parcelable {
+    INITIALIZING,
+    ACTIVE,
     ENDED,
     FAILED
 }
 
 /**
- * Call end reason enum
+ * Data class representing call settings
  */
 @Parcelize
-enum class CallEndReason : Parcelable {
-    NORMAL, // Normal end
-    DECLINED, // Receiver declined
-    MISSED, // Receiver didn't answer
-    TIMEOUT, // Call timed out
-    CONNECTION_ERROR, // Connection error
-    CALLER_ENDED, // Caller ended
-    RECEIVER_ENDED, // Receiver ended
-    SYSTEM_ENDED // System ended (e.g., low battery, incoming phone call)
-}
-
-/**
- * Call preference model
- */
-@Parcelize
-data class CallPreference(
-    val userId: String,
-    val preferVideo: Boolean = true,
-    val enableBackgroundBlur: Boolean = false,
-    val enableNoiseReduction: Boolean = true,
+data class CallSettings(
+    val enableVideo: Boolean = true,
+    val enableAudio: Boolean = true,
+    val enableScreenShare: Boolean = false,
     val allowRecording: Boolean = false,
-    val defaultMicrophoneMuted: Boolean = false,
-    val defaultCameraMuted: Boolean = false,
-    val preferSpeaker: Boolean = true
+    val maxParticipants: Int = 2,
+    val allowJoining: Boolean = true,
+    val autoAcceptAll: Boolean = false,
+    val autoRecordCall: Boolean = false,
+    val preferFrontCamera: Boolean = true,
+    val videoQuality: VideoQuality = VideoQuality.MEDIUM
 ) : Parcelable
 
 /**
- * Call signal event for WebRTC signaling
+ * Enum representing video quality
  */
 @Parcelize
-data class CallSignalEvent(
-    val callId: String,
-    val senderId: String,
-    val recipientId: String,
-    val type: CallSignalType,
-    val data: Map<String, Any> = emptyMap(),
-    val createdAt: Date = Date()
-) : Parcelable {
-    @Suppress("UNCHECKED_CAST")
-    fun getStringData(): Map<String, String> {
-        return data.mapValues { it.value.toString() }
-    }
-}
-
-/**
- * Call signal type enum
- */
-@Parcelize
-enum class CallSignalType : Parcelable {
-    OFFER, // WebRTC offer
-    ANSWER, // WebRTC answer
-    ICE_CANDIDATE, // WebRTC ICE candidate
-    MUTE_AUDIO, // Audio muted
-    UNMUTE_AUDIO, // Audio unmuted
-    MUTE_VIDEO, // Video muted
-    UNMUTE_VIDEO, // Video unmuted
-    SWITCH_CAMERA, // Switch camera
-    ENABLE_SCREEN_SHARE, // Enable screen sharing
-    DISABLE_SCREEN_SHARE, // Disable screen sharing
-    CONNECTION_STATE, // Connection state change
-    BANDWIDTH_CHANGE, // Bandwidth change
-    ERROR // Error
+enum class VideoQuality : Parcelable {
+    LOW,
+    MEDIUM,
+    HIGH,
+    HD,
+    FULL_HD
 }
