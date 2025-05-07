@@ -5,92 +5,147 @@ import kotlinx.parcelize.Parcelize
 import java.util.Date
 
 /**
- * Represents an AI profile in the app
+ * AI Profile model for AI-generated conversation partners
  */
 @Parcelize
 data class AIProfile(
     val id: String = "",
     val name: String = "",
-    val description: String = "",
+    val age: Int = 25,
+    val gender: Gender = Gender.FEMALE,
     val bio: String = "",
-    val personality: String = "", // Detailed personality description
-    val userId: String = "", // Associated user ID in the users collection
-    val photoUrls: List<String> = listOf(),
-    val interests: List<String> = listOf(),
-    val responsePatterns: List<ResponsePattern> = listOf(),
-    val conversationScripts: List<ConversationScript> = listOf(),
-    val behaviorRules: List<String> = listOf(),
-    val category: AIProfileCategory = AIProfileCategory.GENERAL,
-    val isPremium: Boolean = false, // Requires Premium subscription
-    val pointsCost: Int = 0, // Points cost to unlock if not premium
-    val popularity: Int = 0, // Popularity rating (for sorting)
+    val photoUrls: List<String> = emptyList(),
+    val interests: List<String> = emptyList(),
+    val personalityTraits: List<String> = emptyList(),
+    val category: AIProfileCategory = AIProfileCategory.CASUAL,
+    val languageLevel: LanguageLevel = LanguageLevel.FLUENT,
+    val conversationStyle: ConversationStyle = ConversationStyle.FRIENDLY,
+    val conversationTopics: List<String> = emptyList(),
+    val responseDelay: IntRange = 2..10, // Seconds to delay response for realism
+    val popularityScore: Int = 0, // 0-100 rating
+    val isPremium: Boolean = false,
+    val pointsCost: Int = 0,
     val isActive: Boolean = true,
     val createdAt: Date = Date(),
+    val updatedAt: Date = Date(),
+    val scriptTriggers: List<AIScriptTrigger> = emptyList(),
+    val occupation: String = "",
+    val education: String = "",
+    val location: String = "",
+    val relationshipStatus: RelationshipStatus = RelationshipStatus.SINGLE,
+    val zodiacSign: ZodiacSign = ZodiacSign.UNSPECIFIED,
+    val height: Int? = null, // in cm
+    val tags: List<String> = emptyList(),
+    val features: AIProfileFeatures = AIProfileFeatures()
+) : Parcelable
+
+/**
+ * AI profile features
+ */
+@Parcelize
+data class AIProfileFeatures(
+    val canSendMedia: Boolean = false,
+    val canInitiateConversation: Boolean = false,
+    val canMakeOffers: Boolean = false,
+    val canVoiceCall: Boolean = false,
+    val canVideoCall: Boolean = false,
+    val maxMessagesPerDay: Int = 50,
+    val personalityDepth: Int = 1 // 1-5 rating for complexity
+) : Parcelable
+
+/**
+ * AI profile category
+ */
+@Parcelize
+enum class AIProfileCategory : Parcelable {
+    CASUAL,
+    ROMANTIC,
+    FRIENDLY,
+    PROFESSIONAL,
+    CREATIVE,
+    INTELLECTUAL,
+    ADVENTUROUS,
+    WELLNESS,
+    SPIRITUAL,
+    GAMING,
+    CUSTOM
+}
+
+/**
+ * Language level
+ */
+@Parcelize
+enum class LanguageLevel : Parcelable {
+    BASIC,
+    INTERMEDIATE,
+    ADVANCED,
+    FLUENT,
+    NATIVE
+}
+
+/**
+ * Conversation style
+ */
+@Parcelize
+enum class ConversationStyle : Parcelable {
+    FRIENDLY,
+    FLIRTY,
+    SERIOUS,
+    HUMOROUS,
+    CURIOUS,
+    SUPPORTIVE,
+    CHALLENGING,
+    MYSTERIOUS,
+    PROFESSIONAL,
+    CASUAL
+}
+
+/**
+ * AI script trigger for programmed responses to specific message patterns
+ */
+@Parcelize
+data class AIScriptTrigger(
+    val id: String = "",
+    val triggerType: TriggerType = TriggerType.KEYWORD,
+    val pattern: String = "",
+    val response: String = "",
+    val priority: Int = 0,
+    val isActive: Boolean = true,
+    val cooldownMinutes: Int = 0,
+    val category: String = "",
+    val metadata: Map<String, String> = emptyMap()
+) : Parcelable
+
+/**
+ * Trigger type for AI responses
+ */
+@Parcelize
+enum class TriggerType : Parcelable {
+    KEYWORD, // Triggered by specific keywords
+    REGEX, // Triggered by regex pattern
+    INTENT, // Triggered by detected user intent
+    TOPIC, // Triggered by conversation topic
+    TIME_ELAPSED, // Triggered after time elapsed
+    MESSAGE_COUNT, // Triggered after n messages
+    CONVERSATION_START, // Triggered at start
+    CONVERSATION_END, // Triggered at end
+    USER_EMOTION, // Triggered by detected emotion
+    RANDOM // Random trigger with probability
+}
+
+/**
+ * User AI interaction stats
+ */
+@Parcelize
+data class UserAIInteractionStats(
+    val userId: String = "",
+    val aiProfileId: String = "",
+    val messageCount: Int = 0,
+    val lastInteractionAt: Date? = null,
+    val favoriteTopics: List<String> = emptyList(),
+    val unlockDate: Date? = null,
+    val isPinned: Boolean = false,
+    val isHidden: Boolean = false,
+    val userRating: Int = 0, // 1-5 rating
     val updatedAt: Date = Date()
 ) : Parcelable
-
-/**
- * Defines a response pattern for AI messages
- */
-@Parcelize
-data class ResponsePattern(
-    val id: String = "",
-    val triggers: List<String> = listOf(), // Keywords or phrases that trigger this response
-    val responses: List<String> = listOf(), // Possible responses to choose from
-    val priority: Int = 0, // Higher priority patterns take precedence
-    val responseDelay: IntRange = 1..5, // Delay range in seconds
-    val contextTags: List<String> = listOf() // Tags for contextual relevance
-) : Parcelable
-
-/**
- * Defines a scripted conversation path for AI profiles
- */
-@Parcelize
-data class ConversationScript(
-    val id: String = "",
-    val name: String = "",
-    val description: String = "",
-    val triggers: List<String> = listOf(), // Keywords that activate this script
-    val steps: List<ConversationStep> = listOf(),
-    val isLooping: Boolean = false, // Whether to loop back to start when finished
-    val cooldownHours: Int = 24, // Hours before this script can be triggered again
-    val minEngagementLevel: Int = 0 // Minimum user engagement level required (0-5)
-) : Parcelable
-
-/**
- * Step in a scripted conversation
- */
-@Parcelize
-data class ConversationStep(
-    val id: String = "",
-    val messages: List<String> = listOf(), // Possible messages to choose from
-    val expectedResponseTypes: List<String> = listOf(), // Types of user responses expected
-    val nextStepConditions: List<StepCondition> = listOf(), // Conditions for next step
-    val fallbackStepId: String = "", // Step to go to if no conditions match
-    val delaySeconds: IntRange = 1..5, // Delay range in seconds
-    val attachmentType: AttachmentType = AttachmentType.NONE, // Type of attachment
-    val attachmentUrl: String = "" // URL to attachment if any
-) : Parcelable
-
-/**
- * Condition for determining next step in conversation
- */
-@Parcelize
-data class StepCondition(
-    val id: String = "",
-    val keywords: List<String> = listOf(), // Keywords to match in user response
-    val sentimentType: SentimentType = SentimentType.ANY, // Expected sentiment
-    val nextStepId: String = "" // Next step ID if condition matches
-) : Parcelable
-
-enum class AIProfileCategory {
-    ROMANTIC, FRIEND, MENTOR, ADVENTURE, CREATIVE, GENERAL
-}
-
-enum class AttachmentType {
-    NONE, IMAGE, AUDIO, VIDEO, LOCATION, OFFER
-}
-
-enum class SentimentType {
-    POSITIVE, NEGATIVE, NEUTRAL, ANY
-}
