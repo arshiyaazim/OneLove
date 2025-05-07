@@ -1,75 +1,111 @@
 package com.kilagee.onelove.domain.repository
 
-import com.kilagee.onelove.domain.model.User
+import com.kilagee.onelove.data.model.GeoPoint
+import com.kilagee.onelove.data.model.User
+import com.kilagee.onelove.data.model.UserSettings
+import com.kilagee.onelove.data.model.VerificationStatus
+import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
+import java.io.File
+import java.util.Date
 
 /**
- * Repository interface for user-related operations
+ * Repository interface for user operations
  */
 interface UserRepository {
     
     /**
-     * Get the current user profile
+     * Create a new user profile
      */
-    suspend fun getCurrentUser(): Flow<Result<User>>
+    suspend fun createUserProfile(user: User): Result<String> // Returns user ID
     
     /**
-     * Get a user by their ID
+     * Get user by ID
      */
-    suspend fun getUserById(userId: String): Flow<Result<User>>
+    suspend fun getUserById(userId: String): Result<User>
     
     /**
-     * Search for users based on criteria
+     * Get user as a flow for real-time updates
      */
-    suspend fun searchUsers(criteria: Map<String, Any>): Flow<Result<List<User>>>
+    fun getUserFlow(userId: String): Flow<Result<User>>
     
     /**
-     * Get all users that match the current user's preferences
+     * Update user profile
      */
-    suspend fun getPotentialMatches(limit: Int = 50): Flow<Result<List<User>>>
+    suspend fun updateUserProfile(user: User): Result<Unit>
     
     /**
-     * Update the current user's profile
+     * Update specific user fields
      */
-    suspend fun updateUserProfile(user: User): Flow<Result<Boolean>>
+    suspend fun updateUserFields(userId: String, fields: Map<String, Any?>): Result<Unit>
     
     /**
-     * Upload a profile photo
+     * Upload profile photo
      */
-    suspend fun uploadProfilePhoto(photoUri: String): Flow<Result<String>>
+    suspend fun uploadProfilePhoto(userId: String, photoFile: File): Result<String> // Returns photo URL
     
     /**
-     * Set the user's online status
+     * Delete profile photo
      */
-    suspend fun setUserOnlineStatus(isOnline: Boolean): Flow<Result<Boolean>>
+    suspend fun deleteProfilePhoto(userId: String, photoUrl: String): Result<Unit>
+    
+    /**
+     * Update user location
+     */
+    suspend fun updateUserLocation(userId: String, location: GeoPoint): Result<Unit>
+    
+    /**
+     * Update user settings
+     */
+    suspend fun updateUserSettings(userId: String, settings: UserSettings): Result<Unit>
+    
+    /**
+     * Update user's last active timestamp
+     */
+    suspend fun updateLastActive(userId: String, timestamp: Date = Date()): Result<Unit>
     
     /**
      * Block a user
      */
-    suspend fun blockUser(userId: String): Flow<Result<Boolean>>
+    suspend fun blockUser(currentUserId: String, userToBlockId: String): Result<Unit>
     
     /**
      * Unblock a user
      */
-    suspend fun unblockUser(userId: String): Flow<Result<Boolean>>
+    suspend fun unblockUser(currentUserId: String, userToUnblockId: String): Result<Unit>
     
     /**
-     * Report a user
+     * Get all blocked users
      */
-    suspend fun reportUser(userId: String, reason: String): Flow<Result<Boolean>>
+    suspend fun getBlockedUsers(userId: String): Result<List<User>>
     
     /**
-     * Get blocked users
+     * Request profile verification
      */
-    suspend fun getBlockedUsers(): Flow<Result<List<User>>>
+    suspend fun requestVerification(userId: String, selfieFile: File, idFile: File): Result<Unit>
     
     /**
-     * Check if the current user has verified their profile
+     * Get verification status
      */
-    suspend fun isProfileVerified(): Flow<Result<Boolean>>
+    suspend fun getVerificationStatus(userId: String): Result<VerificationStatus>
     
     /**
-     * Submit a verification request
+     * Get potential matches for a user based on preferences
      */
-    suspend fun submitVerification(idPhotoUri: String, selfieUri: String): Flow<Result<Boolean>>
+    suspend fun getPotentialMatches(userId: String, limit: Int = 20): Result<List<User>>
+    
+    /**
+     * Observe user points
+     */
+    fun observeUserPoints(userId: String): Flow<Result<Int>>
+    
+    /**
+     * Check if a user is an admin
+     */
+    suspend fun isUserAdmin(userId: String): Result<Boolean>
+    
+    /**
+     * Search users by name or email (admin only)
+     */
+    suspend fun searchUsers(query: String, isAdminSearch: Boolean = false): Result<List<User>>
 }

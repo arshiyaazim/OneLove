@@ -1,65 +1,130 @@
 package com.kilagee.onelove.data.model
 
 import android.os.Parcelable
-import com.google.firebase.Timestamp
-import com.google.firebase.firestore.DocumentId
 import kotlinx.parcelize.Parcelize
+import java.util.Date
 
 /**
- * Message data model
- * Represents a message between two users or between a user and an AI profile
+ * Message model representing a message in a conversation
  */
 @Parcelize
 data class Message(
-    @DocumentId val id: String = "",
+    val id: String = "",
     val matchId: String = "",
     val senderId: String = "",
-    val receiverId: String = "",
-    val content: String = "",
-    val timestamp: Timestamp? = null,
-    val isRead: Boolean = false,
-    val readAt: Timestamp? = null,
-    val messageType: String = TYPE_TEXT,
-    val mediaUrl: String? = null,
-    val mediaType: String? = null,
-    val mediaThumbnailUrl: String? = null,
+    val recipientId: String = "",
+    val text: String = "",
+    val type: MessageType = MessageType.TEXT,
+    val mediaUrl: String = "",
+    val thumbnailUrl: String = "",
+    val mediaDuration: Long? = null, // Duration in milliseconds for audio/video
+    val mediaWidth: Int? = null, // Width for image/video
+    val mediaHeight: Int? = null, // Height for image/video
+    val mediaSize: Long? = null, // Size in bytes
+    val mediaType: String = "", // MIME type
+    val status: MessageStatus = MessageStatus.SENDING,
+    val readAt: Date? = null,
+    val deliveredAt: Date? = null,
+    val reactions: List<MessageReaction> = emptyList(),
+    val replyToMessageId: String? = null,
+    val isEdited: Boolean = false,
+    val editedAt: Date? = null,
+    val metadata: Map<String, String> = emptyMap(),
+    val createdAt: Date = Date(),
     val isFromAI: Boolean = false,
-    val reactionType: String? = null,
-    val isDeleted: Boolean = false,
-    val metadata: Map<String, Any>? = null
-) : Parcelable {
-    
-    // For Firestore data conversion
-    constructor() : this(id = "")
-    
-    companion object {
-        const val TYPE_TEXT = "TEXT"
-        const val TYPE_IMAGE = "IMAGE"
-        const val TYPE_VIDEO = "VIDEO"
-        const val TYPE_AUDIO = "AUDIO"
-        const val TYPE_LOCATION = "LOCATION"
-        const val TYPE_OFFER = "OFFER"
-        const val TYPE_SYSTEM = "SYSTEM"
-        
-        const val REACTION_LIKE = "LIKE"
-        const val REACTION_LOVE = "LOVE"
-        const val REACTION_LAUGH = "LAUGH"
-        const val REACTION_WOW = "WOW"
-        const val REACTION_SAD = "SAD"
-        const val REACTION_ANGRY = "ANGRY"
-    }
+    val aiProfileId: String = "",
+    val offerId: String = "", // If this message is about an offer
+    val isSystemMessage: Boolean = false
+) : Parcelable
+
+/**
+ * Message type enum
+ */
+@Parcelize
+enum class MessageType : Parcelable {
+    TEXT,
+    IMAGE,
+    VIDEO,
+    AUDIO,
+    LOCATION,
+    CONTACT,
+    STICKER,
+    GIF,
+    FILE,
+    OFFER,
+    SYSTEM
 }
 
 /**
- * Message Draft data model
- * Represents a draft message that hasn't been sent yet
+ * Message status enum
+ */
+@Parcelize
+enum class MessageStatus : Parcelable {
+    SENDING,
+    SENT,
+    DELIVERED,
+    READ,
+    FAILED
+}
+
+/**
+ * Message reaction model
+ */
+@Parcelize
+data class MessageReaction(
+    val userId: String,
+    val reaction: String,
+    val createdAt: Date = Date()
+) : Parcelable
+
+/**
+ * Message draft model
  */
 @Parcelize
 data class MessageDraft(
-    val matchId: String = "",
-    val content: String = "",
-    val messageType: String = Message.TYPE_TEXT,
-    val mediaUri: String? = null,
-    val mediaType: String? = null,
-    val timestamp: Timestamp? = null
+    val matchId: String,
+    val text: String,
+    val attachments: List<MessageAttachment> = emptyList(),
+    val replyToMessageId: String? = null,
+    val updatedAt: Date = Date()
+) : Parcelable
+
+/**
+ * Message attachment model
+ */
+@Parcelize
+data class MessageAttachment(
+    val id: String = "",
+    val type: MessageType,
+    val uri: String,
+    val name: String = "",
+    val size: Long = 0,
+    val width: Int? = null,
+    val height: Int? = null,
+    val duration: Long? = null,
+    val thumbnailUri: String? = null,
+    val mimeType: String = ""
+) : Parcelable
+
+/**
+ * Read receipt model
+ */
+@Parcelize
+data class ReadReceipt(
+    val messageId: String,
+    val matchId: String,
+    val userId: String,
+    val readAt: Date = Date()
+) : Parcelable
+
+/**
+ * Message link preview model
+ */
+@Parcelize
+data class MessageLinkPreview(
+    val url: String,
+    val title: String = "",
+    val description: String = "",
+    val imageUrl: String = "",
+    val siteName: String = ""
 ) : Parcelable

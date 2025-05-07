@@ -1,95 +1,145 @@
 package com.kilagee.onelove.data.model
 
 import android.os.Parcelable
-import com.google.firebase.Timestamp
-import com.google.firebase.firestore.DocumentId
-import com.google.firebase.firestore.GeoPoint
 import kotlinx.parcelize.Parcelize
+import java.util.Date
 
 /**
- * Offer data model
- * Represents an offer that one user can make to another, such as a date, call, etc.
+ * Offer model representing an offer between users
  */
 @Parcelize
 data class Offer(
-    @DocumentId val id: String = "",
-    val fromUserId: String = "",
-    val toUserId: String = "",
+    val id: String = "",
     val matchId: String = "",
+    val senderId: String = "",
+    val recipientId: String = "",
+    val type: OfferType = OfferType.DATE,
     val title: String = "",
     val description: String = "",
-    val type: String = TYPE_DATE,
-    val dateTime: Timestamp? = null,
-    val endDateTime: Timestamp? = null,
+    val pointsAmount: Int = 0,
+    val status: OfferStatus = OfferStatus.PENDING,
+    val expiresAt: Date? = null,
+    val statusUpdatedAt: Date? = null,
+    val statusUpdatedBy: String = "",
+    val rejectionReason: String = "",
     val location: GeoPoint? = null,
     val locationName: String = "",
-    val locationAddress: String = "",
-    val pointsCost: Int = 0,
-    val pointsReward: Int = 0,
-    val imageUrl: String? = null,
-    val activities: List<String> = emptyList(),
-    val status: String = STATUS_PENDING,
-    val createdAt: Timestamp? = null,
-    val updatedAt: Timestamp? = null,
-    val respondedAt: Timestamp? = null,
-    val isDeleted: Boolean = false,
-    val metadata: Map<String, Any>? = null
-) : Parcelable {
-    
-    // For Firestore data conversion
-    constructor() : this(id = "")
-    
-    companion object {
-        const val TYPE_DATE = "DATE"
-        const val TYPE_CALL = "CALL"
-        const val TYPE_MEETING = "MEETING"
-        const val TYPE_VIRTUAL = "VIRTUAL"
-        const val TYPE_GIFT = "GIFT"
-        const val TYPE_CUSTOM = "CUSTOM"
-        
-        const val STATUS_PENDING = "PENDING"
-        const val STATUS_ACCEPTED = "ACCEPTED"
-        const val STATUS_DECLINED = "DECLINED"
-        const val STATUS_EXPIRED = "EXPIRED"
-        const val STATUS_CANCELED = "CANCELED"
-        const val STATUS_COMPLETED = "COMPLETED"
-    }
-}
+    val scheduledDate: Date? = null,
+    val attachments: List<String> = emptyList(), // URLs to images or other attachments
+    val createdAt: Date = Date(),
+    val updatedAt: Date = Date(),
+    val isCounterOffer: Boolean = false,
+    val originalOfferId: String = "",
+    val terms: List<OfferTerm> = emptyList(),
+    val signedBySender: Boolean = false,
+    val signedByRecipient: Boolean = false,
+    val metadata: Map<String, String> = emptyMap()
+) : Parcelable
 
 /**
- * UserOffer data model
- * Represents a reference to an offer with user-specific data
+ * Offer type enum
  */
 @Parcelize
-data class UserOffer(
-    @DocumentId val id: String = "",
-    val userId: String = "",
-    val offerId: String = "",
-    val isFromUser: Boolean = false,
-    val isRead: Boolean = false,
-    val isNudged: Boolean = false,
-    val lastNudgedAt: Timestamp? = null,
-    val nudgeCount: Int = 0
-) : Parcelable {
-    
-    // For Firestore data conversion
-    constructor() : this(id = "")
+enum class OfferType : Parcelable {
+    DATE,
+    GIFT,
+    ACTIVITY,
+    VIRTUAL_DATE,
+    LESSON,
+    CUSTOM,
+    TASK,
+    SERVICE
 }
 
 /**
- * OfferActivity data model
- * Represents an activity that can be selected for an offer
+ * Offer status enum
+ */
+@Parcelize
+enum class OfferStatus : Parcelable {
+    PENDING,
+    ACCEPTED,
+    REJECTED,
+    EXPIRED,
+    CANCELED,
+    COMPLETED,
+    DISPUTED
+}
+
+/**
+ * Offer term model
+ */
+@Parcelize
+data class OfferTerm(
+    val id: String = "",
+    val offerId: String = "",
+    val description: String = "",
+    val isRequired: Boolean = true,
+    val isCompleted: Boolean = false,
+    val completedAt: Date? = null,
+    val completedBy: String = "",
+    val order: Int = 0
+) : Parcelable
+
+/**
+ * Offer activity model
  */
 @Parcelize
 data class OfferActivity(
-    @DocumentId val id: String = "",
-    val name: String = "",
-    val category: String = "",
-    val icon: String = "",
-    val sortOrder: Int = 0,
-    val isActive: Boolean = true
-) : Parcelable {
-    
-    // For Firestore data conversion
-    constructor() : this(id = "")
+    val id: String = "",
+    val offerId: String = "",
+    val userId: String = "",
+    val activityType: OfferActivityType = OfferActivityType.VIEW,
+    val createdAt: Date = Date(),
+    val metadata: Map<String, String> = emptyMap()
+) : Parcelable
+
+/**
+ * Offer activity type enum
+ */
+@Parcelize
+enum class OfferActivityType : Parcelable {
+    VIEW,
+    CREATE,
+    ACCEPT,
+    REJECT,
+    CANCEL,
+    COMPLETE,
+    EXPIRE,
+    MODIFY,
+    COUNTER,
+    COMMENT,
+    SIGN
 }
+
+/**
+ * Offer template model
+ */
+@Parcelize
+data class OfferTemplate(
+    val id: String = "",
+    val type: OfferType = OfferType.DATE,
+    val title: String = "",
+    val description: String = "",
+    val defaultPointsAmount: Int = 0,
+    val terms: List<String> = emptyList(),
+    val isSystem: Boolean = false,
+    val createdBy: String = "",
+    val createdAt: Date = Date(),
+    val categoryId: String = "",
+    val order: Int = 0,
+    val isActive: Boolean = true
+) : Parcelable
+
+/**
+ * Offer template category model
+ */
+@Parcelize
+data class OfferTemplateCategory(
+    val id: String = "",
+    val name: String = "",
+    val description: String = "",
+    val iconUrl: String = "",
+    val order: Int = 0,
+    val isActive: Boolean = true,
+    val createdAt: Date = Date()
+) : Parcelable

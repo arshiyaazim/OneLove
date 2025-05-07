@@ -1,170 +1,174 @@
 package com.kilagee.onelove.domain.repository
 
 import com.kilagee.onelove.data.model.Payment
-import com.kilagee.onelove.data.model.PaymentProvider
-import com.kilagee.onelove.data.model.PaymentStatus
-import com.kilagee.onelove.data.model.PaymentType
-import com.kilagee.onelove.domain.model.Resource
+import com.kilagee.onelove.data.model.PaymentMethodDetails
+import com.kilagee.onelove.data.model.PointsPackage
+import com.kilagee.onelove.data.model.PointsTransaction
+import com.kilagee.onelove.data.model.Subscription
+import com.kilagee.onelove.data.model.SubscriptionPeriod
+import com.kilagee.onelove.data.model.SubscriptionType
+import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
-import java.util.Date
 
 /**
- * Repository interface for payment-related operations
+ * Repository interface for payment and subscription operations
  */
 interface PaymentRepository {
     
     /**
-     * Create a payment intent for purchase
+     * Get available subscription plans
      */
-    fun createPaymentIntent(
-        amountUsd: Double,
-        type: PaymentType,
-        subscriptionId: String? = null,
-        offerId: String? = null,
-        provider: PaymentProvider = PaymentProvider.STRIPE
-    ): Flow<Resource<PaymentIntent>>
+    suspend fun getSubscriptionPlans(): Result<List<SubscriptionPlan>>
     
     /**
-     * Confirm a payment intent with payment method
+     * Get points packages
      */
-    fun confirmPaymentIntent(
+    suspend fun getPointsPackages(): Result<List<PointsPackage>>
+    
+    /**
+     * Create a payment intent for subscription
+     */
+    suspend fun createSubscriptionPaymentIntent(
+        userId: String,
+        subscriptionType: SubscriptionType,
+        period: SubscriptionPeriod
+    ): Result<PaymentIntent>
+    
+    /**
+     * Create a payment intent for points purchase
+     */
+    suspend fun createPointsPaymentIntent(
+        userId: String,
+        pointsPackageId: String
+    ): Result<PaymentIntent>
+    
+    /**
+     * Confirm a payment intent
+     */
+    suspend fun confirmPaymentIntent(
         paymentIntentId: String,
         paymentMethodId: String
-    ): Flow<Resource<Payment>>
+    ): Result<PaymentIntent>
     
     /**
-     * Get all payments for the current user
+     * Handle payment action (3D Secure, etc.)
      */
-    fun getUserPayments(): Flow<Resource<List<Payment>>>
+    suspend fun handlePaymentAction(
+        paymentIntentId: String,
+        actionData: Map<String, String>
+    ): Result<PaymentIntent>
     
     /**
-     * Get payments by status for the current user
+     * Get user's current subscription
      */
-    fun getPaymentsByStatus(status: PaymentStatus): Flow<Resource<List<Payment>>>
+    suspend fun getUserSubscription(userId: String): Result<Subscription?>
     
     /**
-     * Get payments by type for the current user
+     * Get user's current subscription as a flow
      */
-    fun getPaymentsByType(type: PaymentType): Flow<Resource<List<Payment>>>
+    fun getUserSubscriptionFlow(userId: String): Flow<Result<Subscription?>>
     
     /**
-     * Get a payment by ID
+     * Cancel a subscription
      */
-    fun getPaymentById(paymentId: String): Flow<Resource<Payment>>
+    suspend fun cancelSubscription(userId: String): Result<Subscription>
     
     /**
-     * Get payments for a subscription
+     * Update subscription auto-renewal
      */
-    fun getPaymentsForSubscription(subscriptionId: String): Flow<Resource<List<Payment>>>
+    suspend fun updateSubscriptionAutoRenewal(userId: String, autoRenew: Boolean): Result<Subscription>
     
     /**
-     * Get payments for an offer
+     * Add payment method
      */
-    fun getPaymentsForOffer(offerId: String): Flow<Resource<List<Payment>>>
+    suspend fun addPaymentMethod(
+        userId: String,
+        cardNumber: String,
+        expiryMonth: Int,
+        expiryYear: Int,
+        cvc: String,
+        cardHolderName: String
+    ): Result<PaymentMethodDetails>
     
     /**
-     * Get total spent by user in date range
+     * Get user's payment methods
      */
-    fun getTotalSpentInDateRange(startDate: Date, endDate: Date): Flow<Resource<Double>>
+    suspend fun getUserPaymentMethods(userId: String): Result<List<PaymentMethodDetails>>
     
     /**
-     * Handle a payment that requires additional action (e.g., 3D Secure)
+     * Delete a payment method
      */
-    fun handlePaymentRequiringAction(
-        paymentId: String, 
-        actionResult: String?
-    ): Flow<Resource<Payment>>
+    suspend fun deletePaymentMethod(userId: String, paymentMethodId: String): Result<Unit>
     
     /**
-     * Request a refund for a payment
+     * Set default payment method
      */
-    fun requestRefund(
-        paymentId: String,
-        reason: String? = null,
-        amountUsd: Double? = null  // Null means full refund
-    ): Flow<Resource<Payment>>
+    suspend fun setDefaultPaymentMethod(userId: String, paymentMethodId: String): Result<Unit>
     
     /**
-     * Save payment method for future use
+     * Get payment history
      */
-    fun savePaymentMethod(
-        paymentMethodDetails: PaymentMethodDetails
-    ): Flow<Resource<String>> // Returns payment method ID
+    suspend fun getPaymentHistory(userId: String): Result<List<Payment>>
     
     /**
-     * Get saved payment methods for current user
+     * Get points transactions
      */
-    fun getSavedPaymentMethods(): Flow<Resource<List<PaymentMethod>>>
+    suspend fun getPointsTransactions(userId: String): Result<List<PointsTransaction>>
     
     /**
-     * Delete a saved payment method
+     * Get user points balance
      */
-    fun deletePaymentMethod(paymentMethodId: String): Flow<Resource<Unit>>
+    suspend fun getUserPointsBalance(userId: String): Result<Int>
     
     /**
-     * Set a payment method as default
+     * Get user points balance as a flow
      */
-    fun setDefaultPaymentMethod(paymentMethodId: String): Flow<Resource<Unit>>
+    fun getUserPointsBalanceFlow(userId: String): Flow<Result<Int>>
     
     /**
-     * Get payments requiring action from the user
+     * Add points to user
      */
-    fun getPaymentsRequiringAction(): Flow<Resource<List<Payment>>>
+    suspend fun addPointsToUser(
+        userId: String,
+        points: Int,
+        description: String,
+        referenceId: String = ""
+    ): Result<Int> // Returns new balance
+    
+    /**
+     * Deduct points from user
+     */
+    suspend fun deductPointsFromUser(
+        userId: String,
+        points: Int,
+        description: String,
+        referenceId: String = ""
+    ): Result<Int> // Returns new balance
 }
 
 /**
- * Data class for payment intent
+ * Data class for subscription plans
+ */
+data class SubscriptionPlan(
+    val id: String,
+    val type: SubscriptionType,
+    val period: SubscriptionPeriod,
+    val price: Double,
+    val currency: String,
+    val description: String,
+    val benefits: List<String>,
+    val isPopular: Boolean = false
+)
+
+/**
+ * Data class for payment intents
  */
 data class PaymentIntent(
     val id: String,
     val clientSecret: String,
-    val amountUsd: Double,
+    val amount: Double,
+    val currency: String,
     val status: String,
-    val requiresAction: Boolean,
-    val paymentMethodTypes: List<String>,
-    val currency: String = "USD"
-)
-
-/**
- * Data class for payment method details
- */
-data class PaymentMethodDetails(
-    val type: String, // e.g., "card", "bkash"
-    val cardNumber: String? = null,
-    val expiryMonth: Int? = null,
-    val expiryYear: Int? = null,
-    val cvc: String? = null,
-    val billingName: String? = null,
-    val billingEmail: String? = null,
-    val billingPhone: String? = null,
-    val billingAddress: BillingAddress? = null,
-    val mobileNumber: String? = null, // For mobile payment methods
-    val saveForFutureUse: Boolean = false
-)
-
-/**
- * Data class for billing address
- */
-data class BillingAddress(
-    val line1: String,
-    val line2: String? = null,
-    val city: String,
-    val state: String? = null,
-    val postalCode: String,
-    val country: String
-)
-
-/**
- * Data class for payment method
- */
-data class PaymentMethod(
-    val id: String,
-    val type: String,
-    val last4: String?, // Last 4 digits of card/phone
-    val brand: String?, // Card brand
-    val expiryMonth: Int?,
-    val expiryYear: Int?,
-    val holderName: String?,
-    val isDefault: Boolean,
-    val createdAt: Date
+    val requiresAction: Boolean = false,
+    val actionData: Map<String, String> = mapOf()
 )

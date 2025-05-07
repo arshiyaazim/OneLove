@@ -1,55 +1,91 @@
 package com.kilagee.onelove.domain.repository
 
+import com.kilagee.onelove.data.model.Match
 import com.kilagee.onelove.data.model.User
-import com.kilagee.onelove.domain.matching.MatchEngine
-import com.kilagee.onelove.domain.model.Resource
+import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository interface for matching functionality
+ * Repository interface for match operations
  */
 interface MatchRepository {
     
     /**
-     * Get potential matches for the current user
-     * 
-     * @param minMatchPercentage Minimum match percentage to include
-     * @param limit Maximum number of matches to return
-     * @return Flow of Resource containing a list of MatchEngine.MatchResult
-     */
-    fun getPotentialMatches(
-        minMatchPercentage: Int = 50,
-        limit: Int = 50
-    ): Flow<Resource<List<MatchEngine.MatchResult>>>
-    
-    /**
      * Like a user
-     * 
-     * @param userId ID of the user to like
-     * @return Flow of Resource indicating success/failure, with boolean indicating if it's a match
      */
-    fun likeUser(userId: String): Flow<Resource<Boolean>>
+    suspend fun likeUser(currentUserId: String, likedUserId: String): Result<Match?> // Returns Match if mutual, null otherwise
     
     /**
-     * Dislike/Reject a user
-     * 
-     * @param userId ID of the user to reject
-     * @return Flow of Resource indicating success/failure
+     * Dislike a user
      */
-    fun rejectUser(userId: String): Flow<Resource<Unit>>
+    suspend fun dislikeUser(currentUserId: String, dislikedUserId: String): Result<Unit>
     
     /**
-     * Get all matches for the current user
-     * 
-     * @return Flow of Resource containing a list of matched users
+     * Super like a user
      */
-    fun getMatches(): Flow<Resource<List<User>>>
+    suspend fun superLikeUser(currentUserId: String, likedUserId: String): Result<Match?> // Returns Match if mutual, null otherwise
     
     /**
-     * Unmatch with a user
-     * 
-     * @param userId ID of the user to unmatch with
-     * @return Flow of Resource indicating success/failure
+     * Get all matches for a user
      */
-    fun unmatchUser(userId: String): Flow<Resource<Unit>>
+    suspend fun getMatches(userId: String): Result<List<Match>>
+    
+    /**
+     * Get all matches for a user as a flow for real-time updates
+     */
+    fun getMatchesFlow(userId: String): Flow<Result<List<Match>>>
+    
+    /**
+     * Get a specific match by ID
+     */
+    suspend fun getMatchById(matchId: String): Result<Match>
+    
+    /**
+     * Get a match between two specific users
+     */
+    suspend fun getMatchBetweenUsers(userId1: String, userId2: String): Result<Match?>
+    
+    /**
+     * Get match as a flow for real-time updates
+     */
+    fun getMatchFlow(matchId: String): Flow<Result<Match>>
+    
+    /**
+     * Get users who liked the current user
+     */
+    suspend fun getUsersWhoLikedMe(userId: String): Result<List<User>>
+    
+    /**
+     * Unmatch/remove a match
+     */
+    suspend fun unmatch(matchId: String, initiatorUserId: String): Result<Unit>
+    
+    /**
+     * Mark a match as having unread messages
+     */
+    suspend fun markMatchHasUnreadMessage(matchId: String, hasUnread: Boolean = true): Result<Unit>
+    
+    /**
+     * Update the last message info in a match
+     */
+    suspend fun updateMatchLastMessage(
+        matchId: String,
+        senderId: String,
+        preview: String
+    ): Result<Unit>
+    
+    /**
+     * Get AI profile matches for a user
+     */
+    suspend fun getAIMatches(userId: String): Result<List<Match>>
+    
+    /**
+     * Get regular user matches for a user
+     */
+    suspend fun getRegularMatches(userId: String): Result<List<Match>>
+    
+    /**
+     * Get users who are mutually matched with the given user
+     */
+    suspend fun getMatchedUsers(userId: String): Result<List<User>>
 }

@@ -1,69 +1,99 @@
 package com.kilagee.onelove.domain.repository
 
 import com.kilagee.onelove.data.model.Call
+import com.kilagee.onelove.data.model.CallEndReason
 import com.kilagee.onelove.data.model.CallStatus
 import com.kilagee.onelove.data.model.CallType
-import com.kilagee.onelove.domain.model.Resource
+import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
 import java.util.Date
 
 /**
- * Repository interface for call-related operations
+ * Repository interface for call operations
  */
 interface CallRepository {
     
     /**
-     * Create a new one-to-one call
+     * Initiate a call
      */
-    fun createCall(receiverId: String, type: CallType): Flow<Resource<Call>>
-    
-    /**
-     * Create a new group call
-     */
-    fun createGroupCall(participantIds: List<String>, type: CallType): Flow<Resource<Call>>
+    suspend fun initiateCall(
+        matchId: String,
+        callerId: String,
+        receiverId: String,
+        type: CallType
+    ): Result<Call>
     
     /**
      * Get a call by ID
      */
-    fun getCall(callId: String): Flow<Resource<Call>>
+    suspend fun getCallById(callId: String): Result<Call>
     
     /**
-     * Get all calls for the current user
+     * Get call as a flow for real-time updates
      */
-    fun getCalls(): Flow<Resource<List<Call>>>
-    
-    /**
-     * Get call history with a specific user
-     */
-    fun getCallHistoryWithUser(userId: String): Flow<Resource<List<Call>>>
+    fun getCallFlow(callId: String): Flow<Result<Call>>
     
     /**
      * Update call status
      */
-    fun updateCallStatus(callId: String, status: CallStatus): Flow<Resource<Call>>
+    suspend fun updateCallStatus(callId: String, status: CallStatus): Result<Unit>
     
     /**
-     * Answer an incoming call
+     * Accept a call
      */
-    fun answerCall(callId: String): Flow<Resource<Call>>
+    suspend fun acceptCall(callId: String): Result<Unit>
     
     /**
-     * Decline an incoming call
+     * Decline a call
      */
-    fun declineCall(callId: String): Flow<Resource<Call>>
+    suspend fun declineCall(callId: String, reason: CallEndReason = CallEndReason.NORMAL): Result<Unit>
     
     /**
-     * End an ongoing call
+     * End a call
      */
-    fun endCall(callId: String, endTime: Date, duration: Long): Flow<Resource<Call>>
+    suspend fun endCall(
+        callId: String,
+        endTime: Date = Date(),
+        reason: CallEndReason = CallEndReason.NORMAL
+    ): Result<Unit>
     
     /**
-     * Get Agora RTC token for a call
+     * Get call history for a match
      */
-    fun getAgoraToken(callId: String, userId: String, channelName: String): Flow<Resource<String>>
+    suspend fun getCallHistoryForMatch(matchId: String): Result<List<Call>>
     
     /**
-     * Delete a call record
+     * Get call history for a user
      */
-    fun deleteCall(callId: String): Flow<Resource<Unit>>
+    suspend fun getCallHistoryForUser(userId: String): Result<List<Call>>
+    
+    /**
+     * Get active calls for a user
+     */
+    suspend fun getActiveCallsForUser(userId: String): Result<List<Call>>
+    
+    /**
+     * Check if user is in an active call
+     */
+    suspend fun isUserInActiveCall(userId: String): Result<Boolean>
+    
+    /**
+     * Update call quality rating
+     */
+    suspend fun updateCallQuality(callId: String, quality: Int): Result<Unit>
+    
+    /**
+     * Upload call snapshot (for video calls)
+     */
+    suspend fun uploadCallSnapshot(callId: String, imageBase64: String): Result<String> // Returns URL
+    
+    /**
+     * Get WebRTC signaling data as a flow
+     */
+    fun getSignalingDataFlow(callId: String): Flow<Result<Map<String, Any>>>
+    
+    /**
+     * Send WebRTC signaling data
+     */
+    suspend fun sendSignalingData(callId: String, data: Map<String, Any>): Result<Unit>
 }

@@ -1,148 +1,124 @@
 package com.kilagee.onelove.data.model
 
 import android.os.Parcelable
-import com.google.firebase.Timestamp
-import com.google.firebase.firestore.DocumentId
 import kotlinx.parcelize.Parcelize
+import java.util.Date
 
 /**
- * Subscription data model
- * Represents a user's subscription to premium services
+ * Represents a payment made by a user
  */
+@Parcelize
+data class Payment(
+    val id: String = "",
+    val userId: String = "",
+    val amount: Double = 0.0,
+    val currency: String = "USD",
+    val type: PaymentType = PaymentType.SUBSCRIPTION,
+    val status: PaymentStatus = PaymentStatus.PENDING,
+    val provider: PaymentProvider = PaymentProvider.STRIPE,
+    val providerPaymentId: String = "", // Payment ID from the provider (e.g., Stripe)
+    val description: String = "",
+    val subscriptionId: String = "", // ID of the subscription if type is SUBSCRIPTION
+    val pointsPackageId: String = "", // ID of the points package if type is POINTS
+    val pointsAmount: Int = 0, // Number of points purchased if type is POINTS
+    val receiptUrl: String = "", // URL to payment receipt
+    val paymentMethod: PaymentMethod = PaymentMethod.CREDIT_CARD,
+    val paymentMethodDetails: PaymentMethodDetails = PaymentMethodDetails(),
+    val metadata: Map<String, String> = mapOf(), // Additional payment metadata
+    val createdAt: Date = Date(),
+    val updatedAt: Date = Date()
+) : Parcelable
+
+@Parcelize
+data class PaymentMethodDetails(
+    val cardBrand: String = "", // e.g., "visa", "mastercard"
+    val last4: String = "", // Last 4 digits of the card
+    val expiryMonth: Int = 0,
+    val expiryYear: Int = 0,
+    val country: String = "",
+    val name: String = "", // Cardholder name
+    val isDefault: Boolean = false
+) : Parcelable
+
 @Parcelize
 data class Subscription(
-    @DocumentId val id: String = "",
+    val id: String = "",
     val userId: String = "",
-    val planId: String = "",
-    val planName: String = "",
-    val amount: Double = 0.0,
-    val currency: String = "USD",
-    val interval: String = INTERVAL_MONTHLY,
-    val status: String = STATUS_INACTIVE,
-    val startDate: Timestamp? = null,
-    val endDate: Timestamp? = null,
-    val trialEnd: Timestamp? = null,
-    val canceledAt: Timestamp? = null,
-    val autoRenew: Boolean = true,
-    val stripeSubscriptionId: String? = null,
-    val stripeCustomerId: String? = null,
-    val lastPaymentStatus: String? = null,
-    val lastPaymentDate: Timestamp? = null,
-    val lastPaymentAmount: Double? = null,
-    val createdAt: Timestamp? = null,
-    val updatedAt: Timestamp? = null,
-    val metadata: Map<String, Any>? = null
-) : Parcelable {
-    
-    // For Firestore data conversion
-    constructor() : this(id = "")
-    
-    companion object {
-        const val INTERVAL_MONTHLY = "MONTHLY"
-        const val INTERVAL_YEARLY = "YEARLY"
-        
-        const val STATUS_ACTIVE = "ACTIVE"
-        const val STATUS_INACTIVE = "INACTIVE"
-        const val STATUS_PAST_DUE = "PAST_DUE"
-        const val STATUS_CANCELED = "CANCELED"
-        const val STATUS_TRIALING = "TRIALING"
-    }
-}
-
-/**
- * SubscriptionPlan data model
- * Represents a subscription plan that users can purchase
- */
-@Parcelize
-data class SubscriptionPlan(
-    @DocumentId val id: String = "",
-    val name: String = "",
-    val description: String = "",
-    val features: List<String> = emptyList(),
-    val monthlyPrice: Double = 0.0,
-    val yearlyPrice: Double = 0.0,
-    val yearlyDiscount: Int = 0, // percentage
-    val currency: String = "USD",
-    val stripePriceIdMonthly: String = "",
-    val stripePriceIdYearly: String = "",
-    val trialDays: Int = 0,
-    val sortOrder: Int = 0,
-    val isActive: Boolean = true,
-    val icon: String? = null,
-    val pointsIncluded: Int = 0,
-    val createdAt: Timestamp? = null,
-    val updatedAt: Timestamp? = null
-) : Parcelable {
-    
-    // For Firestore data conversion
-    constructor() : this(id = "")
-}
-
-/**
- * Transaction data model
- * Represents a financial transaction in the app
- */
-@Parcelize
-data class Transaction(
-    @DocumentId val id: String = "",
-    val userId: String = "",
-    val type: String = TYPE_SUBSCRIPTION,
-    val amount: Double = 0.0,
-    val currency: String = "USD",
-    val description: String = "",
-    val status: String = STATUS_PENDING,
-    val paymentMethod: String? = null,
-    val paymentMethodDetails: Map<String, Any>? = null,
-    val timestamp: Timestamp? = null,
-    val subscriptionId: String? = null,
-    val pointsAmount: Int? = null,
-    val pointsPurchaseId: String? = null,
-    val paymentIntentId: String? = null,
-    val chargeId: String? = null,
-    val failureReason: String? = null,
-    val receiptUrl: String? = null,
-    val metadata: Map<String, Any>? = null
-) : Parcelable {
-    
-    // For Firestore data conversion
-    constructor() : this(id = "")
-    
-    companion object {
-        const val TYPE_SUBSCRIPTION = "SUBSCRIPTION"
-        const val TYPE_POINTS_PURCHASE = "POINTS_PURCHASE"
-        const val TYPE_POINTS_REDEMPTION = "POINTS_REDEMPTION"
-        const val TYPE_OFFER_PURCHASE = "OFFER_PURCHASE"
-        const val TYPE_FEATURE_PURCHASE = "FEATURE_PURCHASE"
-        
-        const val STATUS_PENDING = "PENDING"
-        const val STATUS_SUCCEEDED = "SUCCEEDED"
-        const val STATUS_FAILED = "FAILED"
-        const val STATUS_REFUNDED = "REFUNDED"
-        const val STATUS_CANCELED = "CANCELED"
-    }
-}
-
-/**
- * PointsPackage data model
- * Represents a points package that users can purchase
- */
-@Parcelize
-data class PointsPackage(
-    @DocumentId val id: String = "",
-    val name: String = "",
-    val pointsAmount: Int = 0,
+    val type: SubscriptionType = SubscriptionType.PREMIUM,
+    val status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
+    val startDate: Date = Date(),
+    val endDate: Date? = null,
+    val renewalDate: Date? = null,
+    val canceledAt: Date? = null,
+    val period: SubscriptionPeriod = SubscriptionPeriod.MONTHLY,
     val price: Double = 0.0,
     val currency: String = "USD",
-    val stripePriceId: String = "",
+    val autoRenew: Boolean = true,
+    val providerSubscriptionId: String = "", // Subscription ID from payment provider
+    val providerCustomerId: String = "", // Customer ID from payment provider
+    val paymentId: String = "", // Latest payment ID
+    val trialEndDate: Date? = null,
+    val createdAt: Date = Date(),
+    val updatedAt: Date = Date()
+) : Parcelable
+
+@Parcelize
+data class PointsPackage(
+    val id: String = "",
+    val name: String = "",
+    val points: Int = 0,
     val bonusPoints: Int = 0,
-    val description: String = "",
+    val price: Double = 0.0,
+    val currency: String = "USD",
     val isPopular: Boolean = false,
+    val isBestValue: Boolean = false,
     val isActive: Boolean = true,
-    val sortOrder: Int = 0,
-    val createdAt: Timestamp? = null,
-    val updatedAt: Timestamp? = null
-) : Parcelable {
-    
-    // For Firestore data conversion
-    constructor() : this(id = "")
+    val iconUrl: String = "",
+    val displayOrder: Int = 0
+) : Parcelable
+
+@Parcelize
+data class PointsTransaction(
+    val id: String = "",
+    val userId: String = "",
+    val amount: Int = 0, // Positive for additions, negative for deductions
+    val type: PointsTransactionType = PointsTransactionType.PURCHASE,
+    val description: String = "",
+    val referenceId: String = "", // ID of related entity (payment, offer, etc.)
+    val balanceAfter: Int = 0,
+    val timestamp: Date = Date()
+) : Parcelable
+
+enum class PaymentType {
+    SUBSCRIPTION, POINTS, ONE_TIME
+}
+
+enum class PaymentStatus {
+    PENDING, SUCCEEDED, FAILED, REFUNDED, CANCELED
+}
+
+enum class PaymentProvider {
+    STRIPE, PAYPAL, GOOGLE_PAY, APPLE_PAY, OTHER
+}
+
+enum class PaymentMethod {
+    CREDIT_CARD, DEBIT_CARD, GOOGLE_PAY, APPLE_PAY, PAYPAL, OTHER
+}
+
+enum class SubscriptionType {
+    PREMIUM, GOLD, PLATINUM // Different tiers of subscription
+}
+
+enum class SubscriptionPeriod {
+    MONTHLY, YEARLY
+}
+
+enum class PointsTransactionType {
+    PURCHASE, // Bought points
+    REWARD, // Earned through activities
+    OFFER, // Spent or earned through offers
+    GIFT, // Received as gift
+    EXPIRY, // Points expired
+    ADJUSTMENT, // Manual adjustment by admin
+    REFUND // Refunded points
 }

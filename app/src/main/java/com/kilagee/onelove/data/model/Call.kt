@@ -1,90 +1,120 @@
 package com.kilagee.onelove.data.model
 
 import android.os.Parcelable
-import com.google.firebase.Timestamp
-import com.google.firebase.firestore.DocumentId
 import kotlinx.parcelize.Parcelize
+import java.util.Date
 
 /**
- * Call data model
- * Represents a voice/video call between users
+ * Call model representing a call between users
  */
 @Parcelize
 data class Call(
-    @DocumentId val id: String = "",
-    val callerId: String = "",
-    val recipientId: String = "",
+    val id: String = "",
     val matchId: String = "",
-    val callType: String = TYPE_VIDEO,
-    val status: String = STATUS_PENDING,
-    val startTime: Timestamp? = null,
-    val endTime: Timestamp? = null,
-    val duration: Int = 0, // in seconds
-    val roomId: String = "",
-    val offerSDP: String? = null,
-    val answerSDP: String? = null,
-    val callerIceCandidates: List<String> = emptyList(),
-    val recipientIceCandidates: List<String> = emptyList(),
-    val pointsCost: Int = 0,
-    val pointsReward: Int = 0,
-    val callRating: Int = 0,
-    val callFeedback: String? = null,
-    val rejectionReason: String? = null,
-    val failureReason: String? = null,
-    val createdAt: Timestamp? = null,
-    val updatedAt: Timestamp? = null,
-    val metadata: Map<String, Any>? = null
+    val callerId: String = "",
+    val receiverId: String = "",
+    val type: CallType = CallType.AUDIO,
+    val status: CallStatus = CallStatus.RINGING,
+    val startTime: Date? = null,
+    val endTime: Date? = null,
+    val duration: Long = 0, // Duration in seconds
+    val endReason: CallEndReason = CallEndReason.NORMAL,
+    val quality: Int = 0, // 1-5 rating
+    val metadata: Map<String, String> = emptyMap(),
+    val screenshotUrl: String = "", // For video calls
+    val isRecorded: Boolean = false,
+    val recordingUrl: String = "",
+    val createdAt: Date = Date(),
+    val updatedAt: Date = Date()
+) : Parcelable
+
+/**
+ * Call type enum
+ */
+@Parcelize
+enum class CallType : Parcelable {
+    AUDIO,
+    VIDEO
+}
+
+/**
+ * Call status enum
+ */
+@Parcelize
+enum class CallStatus : Parcelable {
+    RINGING,
+    CONNECTING,
+    CONNECTED,
+    DECLINED,
+    MISSED,
+    ENDED,
+    FAILED
+}
+
+/**
+ * Call end reason enum
+ */
+@Parcelize
+enum class CallEndReason : Parcelable {
+    NORMAL, // Normal end
+    DECLINED, // Receiver declined
+    MISSED, // Receiver didn't answer
+    TIMEOUT, // Call timed out
+    CONNECTION_ERROR, // Connection error
+    CALLER_ENDED, // Caller ended
+    RECEIVER_ENDED, // Receiver ended
+    SYSTEM_ENDED // System ended (e.g., low battery, incoming phone call)
+}
+
+/**
+ * Call preference model
+ */
+@Parcelize
+data class CallPreference(
+    val userId: String,
+    val preferVideo: Boolean = true,
+    val enableBackgroundBlur: Boolean = false,
+    val enableNoiseReduction: Boolean = true,
+    val allowRecording: Boolean = false,
+    val defaultMicrophoneMuted: Boolean = false,
+    val defaultCameraMuted: Boolean = false,
+    val preferSpeaker: Boolean = true
+) : Parcelable
+
+/**
+ * Call signal event for WebRTC signaling
+ */
+@Parcelize
+data class CallSignalEvent(
+    val callId: String,
+    val senderId: String,
+    val recipientId: String,
+    val type: CallSignalType,
+    val data: Map<String, Any> = emptyMap(),
+    val createdAt: Date = Date()
 ) : Parcelable {
-    
-    // For Firestore data conversion
-    constructor() : this(id = "")
-    
-    companion object {
-        const val TYPE_AUDIO = "AUDIO"
-        const val TYPE_VIDEO = "VIDEO"
-        
-        const val STATUS_PENDING = "PENDING"
-        const val STATUS_CONNECTING = "CONNECTING"
-        const val STATUS_RINGING = "RINGING"
-        const val STATUS_CONNECTED = "CONNECTED"
-        const val STATUS_COMPLETED = "COMPLETED"
-        const val STATUS_MISSED = "MISSED"
-        const val STATUS_REJECTED = "REJECTED"
-        const val STATUS_FAILED = "FAILED"
-        const val STATUS_BUSY = "BUSY"
-        const val STATUS_CANCELED = "CANCELED"
+    @Suppress("UNCHECKED_CAST")
+    fun getStringData(): Map<String, String> {
+        return data.mapValues { it.value.toString() }
     }
 }
 
 /**
- * CallSchedule data model
- * Represents a scheduled future call between users
+ * Call signal type enum
  */
 @Parcelize
-data class CallSchedule(
-    @DocumentId val id: String = "",
-    val userId1: String = "",
-    val userId2: String = "",
-    val matchId: String = "",
-    val callType: String = Call.TYPE_VIDEO,
-    val scheduledTime: Timestamp? = null,
-    val reminderSent: Boolean = false,
-    val reminderSentAt: Timestamp? = null,
-    val status: String = STATUS_SCHEDULED,
-    val callId: String? = null, // Linked to actual call when it happens
-    val notes: String? = null,
-    val pointsCost: Int = 0,
-    val createdAt: Timestamp? = null,
-    val updatedAt: Timestamp? = null
-) : Parcelable {
-    
-    // For Firestore data conversion
-    constructor() : this(id = "")
-    
-    companion object {
-        const val STATUS_SCHEDULED = "SCHEDULED"
-        const val STATUS_COMPLETED = "COMPLETED"
-        const val STATUS_CANCELED = "CANCELED"
-        const val STATUS_MISSED = "MISSED"
-    }
+enum class CallSignalType : Parcelable {
+    OFFER, // WebRTC offer
+    ANSWER, // WebRTC answer
+    ICE_CANDIDATE, // WebRTC ICE candidate
+    MUTE_AUDIO, // Audio muted
+    UNMUTE_AUDIO, // Audio unmuted
+    MUTE_VIDEO, // Video muted
+    UNMUTE_VIDEO, // Video unmuted
+    SWITCH_CAMERA, // Switch camera
+    ENABLE_SCREEN_SHARE, // Enable screen sharing
+    DISABLE_SCREEN_SHARE, // Disable screen sharing
+    CONNECTION_STATE, // Connection state change
+    BANDWIDTH_CHANGE, // Bandwidth change
+    ERROR // Error
 }
