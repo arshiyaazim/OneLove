@@ -8,12 +8,16 @@ import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.ktx.storage
+import com.kilagee.onelove.data.local.MatchDao
+import com.kilagee.onelove.data.local.MessageDao
 import com.kilagee.onelove.data.local.OneLoveDatabase
 import com.kilagee.onelove.data.local.UserDao
 import com.kilagee.onelove.data.repository.AuthRepositoryImpl
+import com.kilagee.onelove.data.repository.ChatRepositoryImpl
 import com.kilagee.onelove.data.repository.DiscoverRepositoryImpl
 import com.kilagee.onelove.data.repository.UserRepositoryImpl
 import com.kilagee.onelove.domain.repository.AuthRepository
+import com.kilagee.onelove.domain.repository.ChatRepository
 import com.kilagee.onelove.domain.repository.DiscoverRepository
 import com.kilagee.onelove.domain.repository.UserRepository
 import dagger.Module
@@ -76,6 +80,24 @@ object AppModule {
     }
     
     /**
+     * Provide Message DAO
+     */
+    @Provides
+    @Singleton
+    fun provideMessageDao(database: OneLoveDatabase): MessageDao {
+        return database.messageDao()
+    }
+    
+    /**
+     * Provide Match DAO
+     */
+    @Provides
+    @Singleton
+    fun provideMatchDao(database: OneLoveDatabase): MatchDao {
+        return database.matchDao()
+    }
+    
+    /**
      * Provide Auth repository
      */
     @Provides
@@ -111,5 +133,18 @@ object AppModule {
         userDao: UserDao
     ): DiscoverRepository {
         return DiscoverRepositoryImpl(firestore, authRepository, userDao)
+    }
+    
+    /**
+     * Provide Chat repository
+     */
+    @Provides
+    @Singleton
+    fun provideChatRepository(
+        firestore: FirebaseFirestore,
+        messageDao: MessageDao,
+        matchDao: MatchDao
+    ): ChatRepository {
+        return ChatRepositoryImpl(firestore, messageDao, matchDao)
     }
 }

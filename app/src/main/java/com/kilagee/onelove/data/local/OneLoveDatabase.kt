@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.kilagee.onelove.data.model.Match
+import com.kilagee.onelove.data.model.Message
 import com.kilagee.onelove.data.model.User
 
 /**
@@ -12,7 +14,9 @@ import com.kilagee.onelove.data.model.User
  */
 @Database(
     entities = [
-        User::class
+        User::class,
+        Message::class,
+        Match::class
         // Add other entities here
     ],
     version = 1,
@@ -25,6 +29,16 @@ abstract class OneLoveDatabase : RoomDatabase() {
      * Get user DAO
      */
     abstract fun userDao(): UserDao
+    
+    /**
+     * Get message DAO
+     */
+    abstract fun messageDao(): MessageDao
+    
+    /**
+     * Get match DAO
+     */
+    abstract fun matchDao(): MatchDao
     
     companion object {
         @Volatile

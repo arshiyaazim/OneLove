@@ -1,19 +1,17 @@
 package com.kilagee.onelove.data.local
 
 import androidx.room.TypeConverter
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.kilagee.onelove.data.model.MatchStatus
+import com.kilagee.onelove.data.model.MessageReaction
 import java.util.Date
 
 /**
- * Type converters for Room database
+ * Type converters for Room Database
  */
 class Converters {
     
-    private val gson = Gson()
-    
     /**
-     * Convert Date to Long
+     * Convert Date to Long timestamp
      */
     @TypeConverter
     fun fromDate(date: Date?): Long? {
@@ -21,7 +19,7 @@ class Converters {
     }
     
     /**
-     * Convert Long to Date
+     * Convert Long timestamp to Date
      */
     @TypeConverter
     fun toDate(timestamp: Long?): Date? {
@@ -29,38 +27,46 @@ class Converters {
     }
     
     /**
-     * Convert List<String> to String
+     * Convert MessageReaction to String
      */
     @TypeConverter
-    fun fromStringList(list: List<String>?): String? {
-        return gson.toJson(list)
+    fun fromMessageReaction(reaction: MessageReaction?): String? {
+        return reaction?.name
     }
     
     /**
-     * Convert String to List<String>
+     * Convert String to MessageReaction
      */
     @TypeConverter
-    fun toStringList(json: String?): List<String>? {
-        if (json == null) return null
-        val type = object : TypeToken<List<String>>() {}.type
-        return gson.fromJson(json, type)
+    fun toMessageReaction(reactionName: String?): MessageReaction? {
+        return reactionName?.let { 
+            try {
+                MessageReaction.valueOf(it)
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+        }
     }
     
     /**
-     * Convert Map<String, Any> to String
+     * Convert MatchStatus to String
      */
     @TypeConverter
-    fun fromMap(map: Map<String, Any>?): String? {
-        return gson.toJson(map)
+    fun fromMatchStatus(status: MatchStatus?): String? {
+        return status?.name
     }
     
     /**
-     * Convert String to Map<String, Any>
+     * Convert String to MatchStatus
      */
     @TypeConverter
-    fun toMap(json: String?): Map<String, Any>? {
-        if (json == null) return null
-        val type = object : TypeToken<Map<String, Any>>() {}.type
-        return gson.fromJson(json, type)
+    fun toMatchStatus(statusName: String?): MatchStatus? {
+        return statusName?.let { 
+            try {
+                MatchStatus.valueOf(it)
+            } catch (e: IllegalArgumentException) {
+                MatchStatus.PENDING
+            }
+        }
     }
 }

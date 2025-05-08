@@ -1,165 +1,155 @@
 package com.kilagee.onelove.ui.screens.chat
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kilagee.onelove.data.model.ChatMessage
-import com.kilagee.onelove.data.model.ChatThread
-import com.kilagee.onelove.data.model.MessageStatus
-import com.kilagee.onelove.data.model.MessageType
+import com.kilagee.onelove.data.model.Message
+import com.kilagee.onelove.data.model.MessageReaction
 import com.kilagee.onelove.data.model.User
 import com.kilagee.onelove.domain.repository.AuthRepository
 import com.kilagee.onelove.domain.repository.ChatRepository
 import com.kilagee.onelove.domain.repository.UserRepository
 import com.kilagee.onelove.domain.util.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.util.Date
+import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
 
 /**
- * ViewModel for chat screen
+ * ViewModel for the chat screen
  */
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
+    private val userRepository: UserRepository,
     private val authRepository: AuthRepository,
-    private val userRepository: UserRepository
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    // Extract matchId from SavedStateHandle (navigation arguments)
+    private val chatId: String = checkNotNull(savedStateHandle["chatId"])
     
-    // UI state
-    private val _uiState = MutableStateFlow<ChatUiState>(ChatUiState.Loading)
-    val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+    private val _chatState = MutableStateFlow<ChatState>(ChatState.Loading)
+    val chatState: StateFlow<ChatState> = _chatState.asStateFlow()
     
-    // Messages
-    private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
-    val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+    private val _messages = MutableStateFlow<List<Message>>(emptyList())
+    val messages: StateFlow<List<Message>> = _messages.asStateFlow()
     
-    // Current match/chat
-    private val _match = MutableStateFlow<ChatThread?>(null)
-    val match: StateFlow<ChatThread?> = _match.asStateFlow()
-    
-    // Current user
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
     
-    // Typing status
-    private val _isTyping = MutableStateFlow(false)
-    val isTyping: StateFlow<Boolean> = _isTyping.asStateFlow()
+    private val _chatPartner = MutableStateFlow<User?>(null)
+    val chatPartner: StateFlow<User?> = _chatPartner.asStateFlow()
     
-    // Events
-    private val _events = MutableSharedFlow<ChatEvent>()
-    val events: SharedFlow<ChatEvent> = _events.asSharedFlow()
-    
-    // Active jobs
-    private var messagesJob: Job? = null
-    private var typingJob: Job? = null
-    
+    /**
+     * Initialize the chat
+     */
     init {
+        loadMatch()
+        loadMessages()
         loadCurrentUser()
+        markMessagesAsRead()
     }
     
     /**
-     * Load current user
+     * Load the match details
+     */
+    private fun loadMatch() {
+        viewModelScope.launch {
+            try {
+                chatRepository.getMatchById(chatId).collectLatest { result ->
+                    when (result) {
+                        is Result.Success -> {
+                            val match = result.data
+                            val currentUserId = authRepository.getCurrentUserId()
+                            
+                            if (currentUserId != null) {
+                                // Determine the chat partner ID
+                                val chatPartnerId = if (match.userId == currentUserId) {
+                                    match.matchedUserId
+                                } else {
+                                    match.userId
+                                }
+                                
+                                // Load the chat partner details
+                                userRepository.getUserById(chatPartnerId).collectLatest { userResult ->
+                                    if (userResult is Result.Success) {
+                                        _chatPartner.value = userResult.data
+                                        _chatState.value = ChatState.Success
+                                    }
+                                }
+                            }
+                        }
+                        is Result.Error -> {
+                            Timber.e("Error loading match: ${result.message}")
+                            _chatState.value = ChatState.Error(result.message)
+                        }
+                        is Result.Loading -> {
+                            _chatState.value = ChatState.Loading
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error loading match")
+                _chatState.value = ChatState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+    
+    /**
+     * Load messages for the chat
+     */
+    private fun loadMessages() {
+        viewModelScope.launch {
+            try {
+                chatRepository.getMessages(chatId).collectLatest { result ->
+                    when (result) {
+                        is Result.Success -> {
+                            _messages.value = result.data
+                        }
+                        is Result.Error -> {
+                            Timber.e("Error loading messages: ${result.message}")
+                        }
+                        is Result.Loading -> {
+                            // Already handled by the chat state
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error loading messages")
+            }
+        }
+    }
+    
+    /**
+     * Load current user details
      */
     private fun loadCurrentUser() {
         viewModelScope.launch {
-            val result = authRepository.getCurrentUser()
-            
-            if (result is Result.Success) {
-                _currentUser.value = result.data
+            authRepository.getCurrentUser().collectLatest { result ->
+                if (result is Result.Success) {
+                    _currentUser.value = result.data
+                }
             }
         }
     }
     
     /**
-     * Load chat data
+     * Mark all messages as read
      */
-    fun loadChat(matchId: String) {
-        _uiState.value = ChatUiState.Loading
-        
-        // Load chat thread
+    private fun markMessagesAsRead() {
         viewModelScope.launch {
-            val result = chatRepository.getChatThread(matchId)
-            
-            when (result) {
-                is Result.Success -> {
-                    _match.value = result.data
-                    
-                    // Load messages
-                    loadMessages(matchId)
-                    
-                    // Set message status to delivered for unread messages
-                    chatRepository.markMessagesAsDelivered(matchId)
-                }
-                is Result.Error -> {
-                    _events.emit(ChatEvent.Error(result.message ?: "Failed to load chat"))
-                    _uiState.value = ChatUiState.Error(result.message ?: "Failed to load chat")
-                }
-                is Result.Loading -> {
-                    // Already set to loading above
-                }
-            }
-        }
-    }
-    
-    /**
-     * Load messages for a chat
-     */
-    private fun loadMessages(matchId: String) {
-        // Cancel any existing job
-        messagesJob?.cancel()
-        
-        // Start new job
-        messagesJob = viewModelScope.launch {
-            chatRepository.getChatMessagesFlow(matchId).collectLatest { result ->
-                when (result) {
-                    is Result.Success -> {
-                        val messageList = result.data
-                        
-                        // Determine UI state
-                        if (messageList.isEmpty()) {
-                            _uiState.value = ChatUiState.Empty
-                        } else {
-                            _uiState.value = ChatUiState.Success
-                        }
-                        
-                        _messages.value = messageList
-                        
-                        // Mark received messages as read
-                        val currentUserId = _currentUser.value?.id
-                        if (currentUserId != null) {
-                            val unreadMessages = messageList.filter { 
-                                it.receiverId == currentUserId && it.status != MessageStatus.READ 
-                            }
-                            
-                            if (unreadMessages.isNotEmpty()) {
-                                chatRepository.markMessagesAsRead(
-                                    matchId, 
-                                    unreadMessages.map { it.id }
-                                )
-                            }
-                        }
-                    }
-                    is Result.Error -> {
-                        _events.emit(ChatEvent.Error(result.message ?: "Failed to load messages"))
-                        _uiState.value = ChatUiState.Error(result.message ?: "Failed to load messages")
-                    }
-                    is Result.Loading -> {
-                        // Keep current state if already loaded
-                        if (_uiState.value !is ChatUiState.Success && _uiState.value !is ChatUiState.Empty) {
-                            _uiState.value = ChatUiState.Loading
-                        }
-                    }
+            val currentUserId = authRepository.getCurrentUserId()
+            if (currentUserId != null) {
+                try {
+                    chatRepository.markAllMessagesAsRead(chatId, currentUserId)
+                } catch (e: Exception) {
+                    Timber.e(e, "Error marking messages as read")
                 }
             }
         }
@@ -168,97 +158,87 @@ class ChatViewModel @Inject constructor(
     /**
      * Send a message
      */
-    fun sendMessage(content: String, type: MessageType = MessageType.TEXT) {
-        val matchId = _match.value?.id ?: return
-        val currentUserId = _currentUser.value?.id ?: return
-        val otherUserId = _match.value?.participants?.firstOrNull { it != currentUserId } ?: return
-        
-        val message = ChatMessage(
-            id = UUID.randomUUID().toString(),
-            chatId = matchId,
-            senderId = currentUserId,
-            receiverId = otherUserId,
-            content = content,
-            type = type,
-            timestamp = Date(),
-            status = MessageStatus.SENDING
-        )
-        
+    fun sendMessage(text: String) {
         viewModelScope.launch {
-            val result = chatRepository.sendMessage(message)
+            val currentUserId = authRepository.getCurrentUserId()
+            val chatPartnerId = _chatPartner.value?.id
             
-            when (result) {
-                is Result.Success -> {
-                    _events.emit(ChatEvent.MessageSent)
-                }
-                is Result.Error -> {
-                    _events.emit(ChatEvent.Error(result.message ?: "Failed to send message"))
-                }
-                is Result.Loading -> {
-                    // Do nothing for loading state
+            if (currentUserId != null && chatPartnerId != null && text.isNotBlank()) {
+                val messageId = UUID.randomUUID().toString()
+                val message = Message(
+                    id = messageId,
+                    matchId = chatId,
+                    senderId = currentUserId,
+                    receiverId = chatPartnerId,
+                    text = text
+                )
+                
+                try {
+                    val result = chatRepository.sendMessage(message)
+                    if (result is Result.Error) {
+                        Timber.e("Error sending message: ${result.message}")
+                    }
+                } catch (e: Exception) {
+                    Timber.e(e, "Error sending message")
                 }
             }
         }
     }
     
     /**
-     * Set typing status
+     * Add reaction to a message
      */
-    fun setTypingStatus(isTyping: Boolean) {
-        val matchId = _match.value?.id ?: return
-        
-        // Cancel any existing job
-        typingJob?.cancel()
-        
-        // Update local state
-        _isTyping.value = isTyping
-        
-        // Start new job
-        typingJob = viewModelScope.launch {
-            chatRepository.setTypingStatus(matchId, isTyping)
-            
-            // Auto-reset typing status after delay
-            if (isTyping) {
-                delay(5000) // Reset after 5 seconds
-                chatRepository.setTypingStatus(matchId, false)
+    fun addReaction(messageId: String, reaction: MessageReaction) {
+        viewModelScope.launch {
+            try {
+                val result = chatRepository.addReactionToMessage(messageId, reaction)
+                if (result is Result.Error) {
+                    Timber.e("Error adding reaction: ${result.message}")
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error adding reaction")
             }
         }
     }
     
     /**
-     * Get user by ID
+     * Remove reaction from a message
      */
-    fun getUserById(userId: String, onSuccess: (User) -> Unit) {
+    fun removeReaction(messageId: String) {
         viewModelScope.launch {
-            val result = userRepository.getUsersById(listOf(userId))
-            
-            if (result is Result.Success && result.data.isNotEmpty()) {
-                onSuccess(result.data.first())
+            try {
+                val result = chatRepository.removeReactionFromMessage(messageId)
+                if (result is Result.Error) {
+                    Timber.e("Error removing reaction: ${result.message}")
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error removing reaction")
             }
         }
     }
     
-    override fun onCleared() {
-        super.onCleared()
-        messagesJob?.cancel()
-        typingJob?.cancel()
+    /**
+     * Delete a message
+     */
+    fun deleteMessage(messageId: String) {
+        viewModelScope.launch {
+            try {
+                val result = chatRepository.deleteMessage(messageId)
+                if (result is Result.Error) {
+                    Timber.e("Error deleting message: ${result.message}")
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error deleting message")
+            }
+        }
     }
 }
 
 /**
- * UI state for the chat screen
+ * Chat state sealed class
  */
-sealed class ChatUiState {
-    object Loading : ChatUiState()
-    object Success : ChatUiState()
-    object Empty : ChatUiState()
-    data class Error(val message: String) : ChatUiState()
-}
-
-/**
- * Events emitted by the chat screen
- */
-sealed class ChatEvent {
-    object MessageSent : ChatEvent()
-    data class Error(val message: String) : ChatEvent()
+sealed class ChatState {
+    object Loading : ChatState()
+    object Success : ChatState()
+    data class Error(val message: String) : ChatState()
 }
