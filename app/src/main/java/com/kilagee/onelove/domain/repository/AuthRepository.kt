@@ -1,128 +1,105 @@
 package com.kilagee.onelove.domain.repository
 
+import com.google.firebase.auth.AuthCredential
 import com.google.firebase.auth.FirebaseUser
 import com.kilagee.onelove.data.model.User
 import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository interface for authentication operations
+ * Repository interface for authentication-related operations
  */
 interface AuthRepository {
-    /**
-     * Get the current authenticated user
-     * @return Flow of Result containing the current FirebaseUser or an error
-     */
-    fun getCurrentUser(): Flow<Result<FirebaseUser?>>
     
     /**
-     * Get the current user's profile data
-     * @return Flow of Result containing the current User profile or an error
+     * Get the currently authenticated user
+     * 
+     * @return Flow of the current FirebaseUser or null if not authenticated
      */
-    fun getCurrentUserProfile(): Flow<Result<User?>>
+    fun getCurrentUser(): Flow<FirebaseUser?>
+    
+    /**
+     * Get user profile by ID
+     * 
+     * @param userId User ID to get profile for, or null for current user
+     * @return Flow of Result containing the User object
+     */
+    fun getUserProfile(userId: String? = null): Flow<Result<User>>
     
     /**
      * Sign in with email and password
+     * 
      * @param email User's email
      * @param password User's password
-     * @return Result containing the FirebaseUser or an error
+     * @return Result of the sign-in operation
      */
-    suspend fun signInWithEmailAndPassword(email: String, password: String): Result<FirebaseUser>
+    suspend fun signInWithEmailPassword(email: String, password: String): Result<FirebaseUser>
     
     /**
-     * Register a new account with email and password
+     * Sign in with credential (e.g., Google, Facebook)
+     * 
+     * @param credential Auth credential
+     * @return Result of the sign-in operation
+     */
+    suspend fun signInWithCredential(credential: AuthCredential): Result<FirebaseUser>
+    
+    /**
+     * Sign up with email and password
+     * 
      * @param email User's email
      * @param password User's password
-     * @param name User's name
-     * @return Result containing the FirebaseUser or an error
+     * @param name User's display name
+     * @return Result of the sign-up operation
      */
-    suspend fun registerWithEmailAndPassword(
+    suspend fun signUpWithEmailPassword(
         email: String, 
-        password: String,
+        password: String, 
         name: String
     ): Result<FirebaseUser>
     
     /**
-     * Send a password reset email
+     * Send password reset email
+     * 
      * @param email User's email
-     * @return Result indicating success or failure
+     * @return Result of the operation
      */
     suspend fun sendPasswordResetEmail(email: String): Result<Unit>
     
     /**
-     * Sign out the current user
-     * @return Result indicating success or failure
+     * Verify email
+     * 
+     * @param code Verification code
+     * @return Result of the verification operation
      */
-    suspend fun signOut(): Result<Unit>
+    suspend fun verifyEmail(code: String): Result<Unit>
     
     /**
-     * Update the user's profile information
-     * @param user Updated user profile data
-     * @return Result containing the updated User or an error
+     * Update user profile
+     * 
+     * @param user Updated user profile
+     * @return Result of the update operation
      */
     suspend fun updateUserProfile(user: User): Result<User>
     
     /**
+     * Update user's FCM token
+     * 
+     * @param token FCM token
+     * @return Result of the update operation
+     */
+    suspend fun updateFcmToken(token: String): Result<Unit>
+    
+    /**
+     * Sign out the current user
+     * 
+     * @return Result of the sign-out operation
+     */
+    suspend fun signOut(): Result<Unit>
+    
+    /**
      * Delete the current user's account
-     * @return Result indicating success or failure
+     * 
+     * @return Result of the delete operation
      */
     suspend fun deleteAccount(): Result<Unit>
-    
-    /**
-     * Send email verification
-     * @return Result indicating success or failure
-     */
-    suspend fun sendEmailVerification(): Result<Unit>
-    
-    /**
-     * Verify the user's phone number
-     * @param phoneNumber User's phone number
-     * @param verificationCode Verification code received via SMS
-     * @return Result indicating success or failure
-     */
-    suspend fun verifyPhoneNumber(phoneNumber: String, verificationCode: String): Result<Unit>
-    
-    /**
-     * Link an anonymous account with email and password
-     * @param email User's email
-     * @param password User's password
-     * @return Result containing the linked FirebaseUser or an error
-     */
-    suspend fun linkAnonymousAccountWithEmailAndPassword(
-        email: String,
-        password: String
-    ): Result<FirebaseUser>
-    
-    /**
-     * Check if a user is already signed in
-     * @return Boolean indicating if a user is signed in
-     */
-    fun isUserSignedIn(): Boolean
-    
-    /**
-     * Check if the current user's email is verified
-     * @return Boolean indicating if the email is verified or null if no user is signed in
-     */
-    fun isEmailVerified(): Boolean?
-    
-    /**
-     * Reauthenticate the current user with their password
-     * @param password User's current password
-     * @return Result indicating success or failure
-     */
-    suspend fun reauthenticateWithPassword(password: String): Result<Unit>
-    
-    /**
-     * Update the user's password
-     * @param newPassword User's new password
-     * @return Result indicating success or failure
-     */
-    suspend fun updatePassword(newPassword: String): Result<Unit>
-    
-    /**
-     * Update the user's email address
-     * @param newEmail User's new email address
-     * @return Result indicating success or failure
-     */
-    suspend fun updateEmail(newEmail: String): Result<Unit>
 }

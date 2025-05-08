@@ -7,100 +7,151 @@ import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository interface for match operations
+ * Repository interface for match-related operations
  */
 interface MatchRepository {
+    
     /**
      * Get all matches for the current user
-     * @param limit Maximum number of matches to return
-     * @param offset Pagination offset
-     * @return Flow of Result containing a list of matches or an error
+     * 
+     * @return Flow of a list of matches
      */
-    fun getMatches(limit: Int = 20, offset: Int = 0): Flow<Result<List<Match>>>
+    fun getMatches(): Flow<Result<List<Match>>>
     
     /**
      * Get a specific match by ID
-     * @param matchId ID of the match to get
-     * @return Flow of Result containing the match or an error
+     * 
+     * @param matchId ID of the match
+     * @return Flow of the match
      */
-    fun getMatchById(matchId: String): Flow<Result<Match?>>
+    fun getMatchById(matchId: String): Flow<Result<Match>>
     
     /**
-     * Get match requests received by the current user
-     * @param limit Maximum number of requests to return
-     * @param offset Pagination offset
-     * @return Flow of Result containing a list of match requests or an error
+     * Check if there is a match between two users
+     * 
+     * @param userId1 ID of the first user
+     * @param userId2 ID of the second user
+     * @return Flow of the match or null if no match exists
      */
-    fun getReceivedMatchRequests(limit: Int = 20, offset: Int = 0): Flow<Result<List<MatchRequest>>>
+    fun getMatchBetweenUsers(userId1: String, userId2: String): Flow<Result<Match?>>
     
     /**
      * Get match requests sent by the current user
-     * @param limit Maximum number of requests to return
-     * @param offset Pagination offset
-     * @return Flow of Result containing a list of match requests or an error
+     * 
+     * @return Flow of a list of match requests
      */
-    fun getSentMatchRequests(limit: Int = 20, offset: Int = 0): Flow<Result<List<MatchRequest>>>
+    fun getSentMatchRequests(): Flow<Result<List<MatchRequest>>>
     
     /**
-     * Like a user (create a match request)
-     * @param userId ID of the user to like
-     * @param message Optional message to include with the like
-     * @return Result containing the created match request or a match if mutual
+     * Get match requests received by the current user
+     * 
+     * @return Flow of a list of match requests
      */
-    suspend fun likeUser(userId: String, message: String? = null): Result<Any>
+    fun getReceivedMatchRequests(): Flow<Result<List<MatchRequest>>>
     
     /**
-     * Dislike a user
-     * @param userId ID of the user to dislike
-     * @return Result indicating success or failure
+     * Get the count of unread received match requests
+     * 
+     * @return Flow of the count
      */
-    suspend fun dislikeUser(userId: String): Result<Unit>
+    fun getUnreadMatchRequestCount(): Flow<Int>
+    
+    /**
+     * Send a match request to another user
+     * 
+     * @param recipientId ID of the recipient
+     * @param message Optional message to include with the request
+     * @return Result of the sent request
+     */
+    suspend fun sendMatchRequest(recipientId: String, message: String? = null): Result<MatchRequest>
     
     /**
      * Accept a match request
-     * @param requestId ID of the match request to accept
-     * @return Result containing the created match or an error
+     * 
+     * @param requestId ID of the request
+     * @return Result of the created match
      */
     suspend fun acceptMatchRequest(requestId: String): Result<Match>
     
     /**
      * Decline a match request
-     * @param requestId ID of the match request to decline
-     * @return Result indicating success or failure
+     * 
+     * @param requestId ID of the request
+     * @return Result of the operation
      */
     suspend fun declineMatchRequest(requestId: String): Result<Unit>
     
     /**
-     * Unmatch with a user
-     * @param matchId ID of the match to delete
-     * @return Result indicating success or failure
+     * Mark a match request as viewed
+     * 
+     * @param requestId ID of the request
+     * @return Result of the operation
      */
-    suspend fun unmatch(matchId: String): Result<Unit>
+    suspend fun markMatchRequestAsViewed(requestId: String): Result<Unit>
     
     /**
-     * Get potential matches (discovery)
-     * @param limit Maximum number of potential matches to return
-     * @return Flow of Result containing a list of users or an error
+     * Cancel a match
+     * 
+     * @param matchId ID of the match
+     * @return Result of the operation
      */
-    fun getPotentialMatches(limit: Int = 20): Flow<Result<List<User>>>
+    suspend fun cancelMatch(matchId: String): Result<Unit>
     
     /**
-     * Get the match count
-     * @return Flow of Result containing the match count or an error
+     * Get match suggestions
+     * 
+     * @param count Number of suggestions to retrieve
+     * @return Flow of a list of suggested users
      */
-    fun getMatchCount(): Flow<Result<Int>>
+    fun getMatchSuggestions(count: Int = 10): Flow<Result<List<User>>>
     
     /**
-     * Get users who have liked the current user but aren't matched yet
-     * @param limit Maximum number of users to return
-     * @param offset Pagination offset
-     * @return Flow of Result containing a list of users or an error
+     * Like a user
+     * 
+     * @param userId ID of the user to like
+     * @return Result of the operation, with a Match if a mutual like occurred
      */
-    fun getLikes(limit: Int = 20, offset: Int = 0): Flow<Result<List<User>>>
+    suspend fun likeUser(userId: String): Result<Match?>
     
     /**
-     * Get number of users who have liked the current user
-     * @return Flow of Result containing the like count or an error
+     * Unlike a user
+     * 
+     * @param userId ID of the user to unlike
+     * @return Result of the operation
      */
-    fun getLikeCount(): Flow<Result<Int>>
+    suspend fun unlikeUser(userId: String): Result<Unit>
+    
+    /**
+     * Get users who have liked the current user
+     * 
+     * @param limit Maximum number of users to retrieve
+     * @return Flow of a list of users
+     */
+    fun getUsersWhoLikedMe(limit: Int = 20): Flow<Result<List<User>>>
+    
+    /**
+     * Get recent matches
+     * 
+     * @param limit Maximum number of matches to retrieve
+     * @return Flow of a list of matches
+     */
+    fun getRecentMatches(limit: Int = 10): Flow<Result<List<Match>>>
+    
+    /**
+     * Find users based on search criteria
+     * 
+     * @param minAge Minimum age
+     * @param maxAge Maximum age
+     * @param distance Maximum distance in kilometers
+     * @param interests List of interests
+     * @param limit Maximum number of users to retrieve
+     * @return Flow of a list of users
+     */
+    fun findUsers(
+        minAge: Int? = null,
+        maxAge: Int? = null,
+        distance: Int? = null,
+        interests: List<String>? = null,
+        limit: Int = 20
+    ): Flow<Result<List<User>>>
 }

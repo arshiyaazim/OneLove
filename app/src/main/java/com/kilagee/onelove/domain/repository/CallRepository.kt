@@ -1,204 +1,189 @@
 package com.kilagee.onelove.domain.repository
 
-import com.kilagee.onelove.data.model.Call
-import com.kilagee.onelove.data.model.CallOffer
-import com.kilagee.onelove.data.model.CallSession
-import com.kilagee.onelove.data.model.CallSettings
-import com.kilagee.onelove.data.model.CallType
+import com.kilagee.onelove.data.model.User
 import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
-import java.util.Date
+import org.webrtc.MediaStream
+import org.webrtc.SessionDescription
 
 /**
- * Interface for call-related operations
+ * Call history item
+ */
+data class CallHistoryItem(
+    val id: String,
+    val userId: String,
+    val userName: String,
+    val userProfileUrl: String?,
+    val timestamp: Long,
+    val durationSeconds: Int,
+    val isOutgoing: Boolean,
+    val isVideoCall: Boolean,
+    val isMissed: Boolean
+)
+
+/**
+ * Repository interface for call-related operations
  */
 interface CallRepository {
     
     /**
-     * Get call history for the current user
-     * @param limit Maximum number of calls to fetch
-     * @param before Optional timestamp to fetch calls before (for pagination)
-     * @return List of [Call] objects
+     * Get call history
+     * 
+     * @param limit Maximum number of items to retrieve
+     * @return Flow of a list of call history items
      */
-    suspend fun getCallHistory(limit: Int = 20, before: Date? = null): Result<List<Call>>
+    fun getCallHistory(limit: Int = 20): Flow<Result<List<CallHistoryItem>>>
     
     /**
-     * Get call history as a flow for real-time updates
-     * @param limit Maximum number of calls to fetch initially
-     * @return Flow of [Call] lists
+     * Get call history with a specific user
+     * 
+     * @param userId ID of the user
+     * @param limit Maximum number of items to retrieve
+     * @return Flow of a list of call history items
      */
-    fun getCallHistoryFlow(limit: Int = 20): Flow<Result<List<Call>>>
+    fun getCallHistoryWithUser(userId: String, limit: Int = 20): Flow<Result<List<CallHistoryItem>>>
     
     /**
-     * Get a specific call by ID
-     * @param callId ID of the call to retrieve
-     * @return The [Call] object
+     * Initialize WebRTC
+     * 
+     * @return Result of the initialization
      */
-    suspend fun getCall(callId: String): Result<Call>
+    suspend fun initializeWebRTC(): Result<Unit>
     
     /**
-     * Get call as a flow for real-time updates
-     * @param callId ID of the call to retrieve
-     * @return Flow of the [Call]
+     * Start a call with a user
+     * 
+     * @param user User to call
+     * @param isVideoCall Whether this is a video call
+     * @return Result of the operation
      */
-    fun getCallFlow(callId: String): Flow<Result<Call>>
+    suspend fun startCall(user: User, isVideoCall: Boolean): Result<String>
     
     /**
-     * Initialize a call to a user
+     * Answer an incoming call
+     * 
+     * @param callId ID of the call
+     * @param withVideo Whether to answer with video
+     * @return Result of the operation
+     */
+    suspend fun answerCall(callId: String, withVideo: Boolean): Result<Unit>
+    
+    /**
+     * End the current call
+     * 
+     * @return Result of the operation
+     */
+    suspend fun endCall(): Result<Unit>
+    
+    /**
+     * Decline an incoming call
+     * 
+     * @param callId ID of the call
+     * @return Result of the operation
+     */
+    suspend fun declineCall(callId: String): Result<Unit>
+    
+    /**
+     * Create an offer to start a call
+     * 
      * @param userId ID of the user to call
-     * @param type Type of call (audio or video)
-     * @param settings Optional call settings
-     * @return The created [Call] object
+     * @return Result containing the session description
      */
-    suspend fun initiateCall(
-        userId: String,
-        type: CallType,
-        settings: CallSettings? = null
-    ): Result<Call>
+    suspend fun createOffer(userId: String): Result<SessionDescription>
     
     /**
-     * Accept an incoming call
-     * @param callId ID of the call to accept
-     * @param enableVideo Whether to enable video
-     * @return The updated [Call] object
-     */
-    suspend fun acceptCall(callId: String, enableVideo: Boolean = true): Result<Call>
-    
-    /**
-     * Reject an incoming call
-     * @param callId ID of the call to reject
-     * @param reason Optional reason for rejection
-     */
-    suspend fun rejectCall(callId: String, reason: String? = null): Result<Unit>
-    
-    /**
-     * End an ongoing call
-     * @param callId ID of the call to end
-     * @param reason Optional reason for ending
-     */
-    suspend fun endCall(callId: String, reason: String? = null): Result<Unit>
-    
-    /**
-     * Toggle mute status during a call
+     * Create an answer to accept a call
+     * 
      * @param callId ID of the call
-     * @param muted Whether audio should be muted
+     * @param offer Remote session description
+     * @return Result containing the session description
      */
-    suspend fun toggleMute(callId: String, muted: Boolean): Result<Unit>
+    suspend fun createAnswer(callId: String, offer: SessionDescription): Result<SessionDescription>
     
     /**
-     * Toggle video status during a call
+     * Add ICE candidate
+     * 
      * @param callId ID of the call
-     * @param videoEnabled Whether video should be enabled
+     * @param candidate ICE candidate
+     * @return Result of the operation
      */
-    suspend fun toggleVideo(callId: String, videoEnabled: Boolean): Result<Unit>
+    suspend fun addIceCandidate(callId: String, candidate: org.webrtc.IceCandidate): Result<Unit>
     
     /**
-     * Toggle speaker status during a call
+     * Set remote description
+     * 
      * @param callId ID of the call
-     * @param speakerOn Whether speaker should be on
+     * @param description Remote session description
+     * @return Result of the operation
      */
-    suspend fun toggleSpeaker(callId: String, speakerOn: Boolean): Result<Unit>
+    suspend fun setRemoteDescription(callId: String, description: SessionDescription): Result<Unit>
     
     /**
-     * Switch camera during a video call
-     * @param callId ID of the call
-     * @param useFrontCamera Whether to use the front camera
+     * Toggle audio mute
+     * 
+     * @param isMuted Whether audio should be muted
+     * @return Result of the operation
      */
-    suspend fun switchCamera(callId: String, useFrontCamera: Boolean): Result<Unit>
+    suspend fun toggleAudioMute(isMuted: Boolean): Result<Unit>
     
     /**
-     * Create a call offer (WebRTC)
-     * @param callId ID of the call
-     * @param receiverId ID of the user receiving the offer
-     * @param sdp Session Description Protocol string
-     * @return The created [CallOffer]
+     * Toggle video
+     * 
+     * @param isEnabled Whether video should be enabled
+     * @return Result of the operation
      */
-    suspend fun createCallOffer(
-        callId: String,
-        receiverId: String,
-        sdp: String
-    ): Result<CallOffer>
+    suspend fun toggleVideo(isEnabled: Boolean): Result<Unit>
     
     /**
-     * Answer a call offer (WebRTC)
-     * @param offerId ID of the offer to answer
-     * @param sdp Session Description Protocol string
+     * Toggle speaker
+     * 
+     * @param isSpeakerOn Whether speaker should be on
+     * @return Result of the operation
      */
-    suspend fun answerCallOffer(offerId: String, sdp: String): Result<Unit>
+    suspend fun toggleSpeaker(isSpeakerOn: Boolean): Result<Unit>
     
     /**
-     * Add ICE candidate (WebRTC)
-     * @param callId ID of the call
-     * @param candidate ICE candidate JSON string
+     * Switch camera
+     * 
+     * @return Result of the operation
      */
-    suspend fun addIceCandidate(callId: String, candidate: String): Result<Unit>
+    suspend fun switchCamera(): Result<Unit>
     
     /**
-     * Get active call session
-     * @param callId ID of the call
-     * @return The [CallSession] object
+     * Get local media stream
+     * 
+     * @return Flow of the local media stream
      */
-    suspend fun getCallSession(callId: String): Result<CallSession>
+    fun getLocalStream(): Flow<MediaStream>
     
     /**
-     * Get call session as a flow for real-time updates
-     * @param callId ID of the call
-     * @return Flow of the [CallSession]
+     * Get remote media stream
+     * 
+     * @return Flow of the remote media stream
      */
-    fun getCallSessionFlow(callId: String): Flow<Result<CallSession>>
+    fun getRemoteStream(): Flow<MediaStream>
     
     /**
-     * Start screen sharing during a call
-     * @param callId ID of the call
-     * @return Updated [CallSession]
+     * Get call state
+     * 
+     * @return Flow of the call state
      */
-    suspend fun startScreenSharing(callId: String): Result<CallSession>
+    fun getCallState(): Flow<CallState>
     
     /**
-     * Stop screen sharing during a call
-     * @param callId ID of the call
+     * Clean up WebRTC resources
      */
-    suspend fun stopScreenSharing(callId: String): Result<Unit>
-    
-    /**
-     * Start call recording
-     * @param callId ID of the call
-     * @return Updated [CallSession]
-     */
-    suspend fun startRecording(callId: String): Result<CallSession>
-    
-    /**
-     * Stop call recording
-     * @param callId ID of the call
-     */
-    suspend fun stopRecording(callId: String): Result<Unit>
-    
-    /**
-     * Delete a call from history
-     * @param callId ID of the call to delete
-     */
-    suspend fun deleteCallFromHistory(callId: String): Result<Unit>
-    
-    /**
-     * Clear all call history
-     */
-    suspend fun clearCallHistory(): Result<Unit>
-    
-    /**
-     * Check if there's an active call
-     * @return true if there's an active call
-     */
-    suspend fun hasActiveCall(): Result<Boolean>
-    
-    /**
-     * Get the currently active call, if any
-     * @return The active [Call] or null
-     */
-    suspend fun getActiveCall(): Result<Call?>
-    
-    /**
-     * Get TURN/STUN server configuration
-     * @return Map of ICE server configurations
-     */
-    suspend fun getIceServers(): Result<Map<String, String>>
+    fun cleanup()
+}
+
+/**
+ * Call state
+ */
+enum class CallState {
+    IDLE,
+    CONNECTING,
+    CONNECTED,
+    RECONNECTING,
+    DISCONNECTED,
+    INCOMING_CALL
 }

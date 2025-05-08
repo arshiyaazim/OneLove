@@ -6,142 +6,157 @@ import com.kilagee.onelove.data.model.SubscriptionStatus
 import com.kilagee.onelove.data.model.Transaction
 import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
+import java.util.Date
 
 /**
- * Repository interface for payment and subscription operations
+ * Repository interface for payment-related operations
  */
 interface PaymentRepository {
+    
     /**
      * Get available subscription plans
-     * @return Flow of Result containing a list of subscription plans or an error
+     * 
+     * @return Flow of a list of subscription plans
      */
     fun getSubscriptionPlans(): Flow<Result<List<SubscriptionPlan>>>
     
     /**
-     * Get the current user's subscription status
-     * @return Flow of Result containing the subscription status or an error
+     * Get current subscription status for the user
+     * 
+     * @return Flow of the subscription status or null if not subscribed
      */
-    fun getSubscriptionStatus(): Flow<Result<SubscriptionStatus>>
+    fun getCurrentSubscription(): Flow<Result<SubscriptionStatus?>>
     
     /**
-     * Create a payment intent for a subscription purchase
-     * @param planId ID of the subscription plan
-     * @param paymentMethodId Optional payment method ID to use
-     * @return Result containing the client secret for the payment intent or an error
+     * Get subscription history for the user
+     * 
+     * @return Flow of a list of subscription statuses
      */
-    suspend fun createSubscriptionPaymentIntent(
-        planId: String,
-        paymentMethodId: String? = null
-    ): Result<String>
-    
-    /**
-     * Confirm a payment intent
-     * @param paymentIntentId ID of the payment intent to confirm
-     * @param paymentMethodId ID of the payment method to use
-     * @return Result containing the updated payment intent status or an error
-     */
-    suspend fun confirmPaymentIntent(
-        paymentIntentId: String,
-        paymentMethodId: String
-    ): Result<String>
-    
-    /**
-     * Handle additional action required for payment
-     * @param paymentIntentId ID of the payment intent
-     * @param action Action to perform
-     * @return Result containing the updated payment intent status or an error
-     */
-    suspend fun handlePaymentAction(
-        paymentIntentId: String,
-        action: String
-    ): Result<String>
+    fun getSubscriptionHistory(): Flow<Result<List<SubscriptionStatus>>>
     
     /**
      * Subscribe to a plan
+     * 
      * @param planId ID of the subscription plan
      * @param paymentMethodId ID of the payment method to use
-     * @return Result containing the subscription ID or an error
+     * @return Result of the created subscription
      */
-    suspend fun subscribe(planId: String, paymentMethodId: String): Result<String>
+    suspend fun subscribeToPlan(planId: String, paymentMethodId: String): Result<SubscriptionStatus>
     
     /**
-     * Cancel the current subscription
-     * @param atPeriodEnd Whether to cancel at the end of the billing period
-     * @return Result indicating success or failure
+     * Update auto-renew setting
+     * 
+     * @param subscriptionId ID of the subscription
+     * @param autoRenew Whether auto-renew should be enabled
+     * @return Result of the updated subscription
      */
-    suspend fun cancelSubscription(atPeriodEnd: Boolean = true): Result<Unit>
+    suspend fun updateAutoRenew(subscriptionId: String, autoRenew: Boolean): Result<SubscriptionStatus>
     
     /**
-     * Update subscription auto-renew settings
-     * @param autoRenew Whether to auto-renew the subscription
-     * @return Result indicating success or failure
+     * Cancel a subscription
+     * 
+     * @param subscriptionId ID of the subscription
+     * @param reason Optional reason for cancellation
+     * @return Result of the operation
      */
-    suspend fun updateSubscriptionAutoRenew(autoRenew: Boolean): Result<Unit>
+    suspend fun cancelSubscription(subscriptionId: String, reason: String? = null): Result<Unit>
     
     /**
-     * Get the user's saved payment methods
-     * @return Flow of Result containing a list of payment methods or an error
+     * Get payment methods for the user
+     * 
+     * @return Flow of a list of payment methods
      */
     fun getPaymentMethods(): Flow<Result<List<PaymentMethod>>>
     
     /**
-     * Add a new payment method
-     * @param paymentMethodId ID of the payment method to add
-     * @param isDefault Whether this should be the default payment method
-     * @return Result containing the added payment method or an error
+     * Get default payment method for the user
+     * 
+     * @return Flow of the default payment method or null if none
      */
-    suspend fun addPaymentMethod(
-        paymentMethodId: String,
-        isDefault: Boolean = false
-    ): Result<PaymentMethod>
+    fun getDefaultPaymentMethod(): Flow<Result<PaymentMethod?>>
     
     /**
-     * Remove a payment method
-     * @param paymentMethodId ID of the payment method to remove
-     * @return Result indicating success or failure
+     * Add a payment method
+     * 
+     * @param paymentMethodId Stripe payment method ID
+     * @param makeDefault Whether to make this the default payment method
+     * @return Result of the added payment method
      */
-    suspend fun removePaymentMethod(paymentMethodId: String): Result<Unit>
+    suspend fun addPaymentMethod(paymentMethodId: String, makeDefault: Boolean = false): Result<PaymentMethod>
     
     /**
      * Set a payment method as default
-     * @param paymentMethodId ID of the payment method to set as default
-     * @return Result indicating success or failure
+     * 
+     * @param paymentMethodId ID of the payment method
+     * @return Result of the operation
      */
     suspend fun setDefaultPaymentMethod(paymentMethodId: String): Result<Unit>
     
     /**
-     * Get transaction history
-     * @param limit Maximum number of transactions to return
-     * @param offset Pagination offset
-     * @return Flow of Result containing a list of transactions or an error
+     * Delete a payment method
+     * 
+     * @param paymentMethodId ID of the payment method
+     * @return Result of the operation
      */
-    fun getTransactionHistory(
-        limit: Int = 20,
-        offset: Int = 0
-    ): Flow<Result<List<Transaction>>>
+    suspend fun deletePaymentMethod(paymentMethodId: String): Result<Unit>
     
     /**
-     * Purchase coins (in-app currency)
-     * @param packageId ID of the coin package to purchase
-     * @param paymentMethodId ID of the payment method to use
-     * @return Result containing the transaction or an error
+     * Get transaction history
+     * 
+     * @param limit Maximum number of transactions to retrieve
+     * @return Flow of a list of transactions
      */
-    suspend fun purchaseCoins(
-        packageId: String,
+    fun getTransactionHistory(limit: Int = 20): Flow<Result<List<Transaction>>>
+    
+    /**
+     * Get transaction details
+     * 
+     * @param transactionId ID of the transaction
+     * @return Flow of the transaction
+     */
+    fun getTransactionDetails(transactionId: String): Flow<Result<Transaction>>
+    
+    /**
+     * Get spending summary
+     * 
+     * @param startDate Start date for the summary
+     * @param endDate End date for the summary
+     * @return Result containing the total spending in cents
+     */
+    suspend fun getSpendingSummary(startDate: Date, endDate: Date): Result<Int>
+    
+    /**
+     * Create a Stripe payment intent
+     * 
+     * @param amount Amount in cents
+     * @param currency Currency code (e.g., USD)
+     * @param description Description of the payment
+     * @return Result containing the client secret
+     */
+    suspend fun createPaymentIntent(
+        amount: Int,
+        currency: String = "USD",
+        description: String
+    ): Result<String>
+    
+    /**
+     * Confirm a payment
+     * 
+     * @param paymentIntentId ID of the payment intent
+     * @param paymentMethodId ID of the payment method
+     * @return Result of the transaction
+     */
+    suspend fun confirmPayment(
+        paymentIntentId: String,
         paymentMethodId: String
     ): Result<Transaction>
     
     /**
-     * Get the current coin balance
-     * @return Flow of Result containing the coin balance or an error
+     * Purchase coins
+     * 
+     * @param coinPackageId ID of the coin package
+     * @param paymentMethodId ID of the payment method
+     * @return Result of the transaction
      */
-    fun getCoinBalance(): Flow<Result<Int>>
-    
-    /**
-     * Use coins for a feature
-     * @param feature Feature to use coins for
-     * @param amount Amount of coins to use
-     * @return Result indicating success or failure
-     */
-    suspend fun useCoins(feature: String, amount: Int): Result<Int>
+    suspend fun purchaseCoins(coinPackageId: String, paymentMethodId: String): Result<Transaction>
 }

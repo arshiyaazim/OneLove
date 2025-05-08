@@ -1,97 +1,135 @@
 package com.kilagee.onelove.domain.repository
 
 import com.kilagee.onelove.data.model.Notification
+import com.kilagee.onelove.data.model.NotificationType
 import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository interface for notification operations
+ * Repository interface for notification-related operations
  */
 interface NotificationRepository {
+    
     /**
      * Get all notifications for the current user
-     * @param limit Maximum number of notifications to return
-     * @param offset Pagination offset
-     * @return Flow of Result containing a list of notifications or an error
+     * 
+     * @param limit Maximum number of notifications to retrieve
+     * @return Flow of a list of notifications
      */
-    fun getNotifications(limit: Int = 20, offset: Int = 0): Flow<Result<List<Notification>>>
+    fun getNotifications(limit: Int = 50): Flow<Result<List<Notification>>>
     
     /**
      * Get unread notifications for the current user
-     * @param limit Maximum number of notifications to return
-     * @return Flow of Result containing a list of notifications or an error
+     * 
+     * @param limit Maximum number of notifications to retrieve
+     * @return Flow of a list of notifications
      */
     fun getUnreadNotifications(limit: Int = 20): Flow<Result<List<Notification>>>
     
     /**
+     * Get the count of unread notifications
+     * 
+     * @return Flow of the count
+     */
+    fun getUnreadNotificationCount(): Flow<Int>
+    
+    /**
+     * Get notifications by type
+     * 
+     * @param type Type of notifications to retrieve
+     * @param limit Maximum number of notifications to retrieve
+     * @return Flow of a list of notifications
+     */
+    fun getNotificationsByType(
+        type: NotificationType,
+        limit: Int = 20
+    ): Flow<Result<List<Notification>>>
+    
+    /**
      * Mark a notification as read
-     * @param notificationId ID of the notification to mark as read
-     * @return Result indicating success or failure
+     * 
+     * @param notificationId ID of the notification
+     * @return Result of the operation
      */
     suspend fun markNotificationAsRead(notificationId: String): Result<Unit>
     
     /**
      * Mark all notifications as read
-     * @return Result indicating success or failure
+     * 
+     * @return Result of the operation
      */
     suspend fun markAllNotificationsAsRead(): Result<Unit>
     
     /**
      * Delete a notification
-     * @param notificationId ID of the notification to delete
-     * @return Result indicating success or failure
+     * 
+     * @param notificationId ID of the notification
+     * @return Result of the operation
      */
     suspend fun deleteNotification(notificationId: String): Result<Unit>
     
     /**
      * Delete all notifications
-     * @return Result indicating success or failure
+     * 
+     * @return Result of the operation
      */
     suspend fun deleteAllNotifications(): Result<Unit>
     
     /**
-     * Get the count of unread notifications
-     * @return Flow of Result containing the unread count or an error
+     * Send a notification to a user
+     * 
+     * @param userId ID of the user to notify
+     * @param type Type of notification
+     * @param title Notification title
+     * @param content Notification content
+     * @param data Additional data for the notification
+     * @return Result of the operation
      */
-    fun getUnreadNotificationCount(): Flow<Result<Int>>
-    
-    /**
-     * Register the device for push notifications
-     * @return Result indicating success or failure
-     */
-    suspend fun registerDevice(): Result<Unit>
-    
-    /**
-     * Unregister the device from push notifications
-     * @return Result indicating success or failure
-     */
-    suspend fun unregisterDevice(): Result<Unit>
-    
-    /**
-     * Update notification preferences
-     * @param preferences Map of notification types to boolean preferences
-     * @return Result indicating success or failure
-     */
-    suspend fun updateNotificationPreferences(preferences: Map<String, Boolean>): Result<Unit>
+    suspend fun sendNotification(
+        userId: String,
+        type: NotificationType,
+        title: String,
+        content: String,
+        data: Map<String, String> = emptyMap()
+    ): Result<Notification>
     
     /**
      * Get notification preferences
-     * @return Flow of Result containing a map of notification types to boolean preferences
+     * 
+     * @return Flow of a map of notification type to enabled status
      */
-    fun getNotificationPreferences(): Flow<Result<Map<String, Boolean>>>
+    fun getNotificationPreferences(): Flow<Result<Map<NotificationType, Boolean>>>
     
     /**
-     * Schedule a local notification
-     * @param notification Notification to schedule
-     * @param delayMillis Delay in milliseconds
-     * @return Result containing the notification ID or an error
+     * Update notification preferences
+     * 
+     * @param preferences Map of notification type to enabled status
+     * @return Result of the operation
      */
-    suspend fun scheduleLocalNotification(notification: Notification, delayMillis: Long): Result<String>
+    suspend fun updateNotificationPreferences(
+        preferences: Map<NotificationType, Boolean>
+    ): Result<Unit>
     
     /**
-     * Cancel a scheduled local notification
-     * @param notificationId ID of the notification to cancel
-     * @return Result indicating success or failure
+     * Register FCM token
+     * 
+     * @param token FCM token
+     * @return Result of the operation
      */
-    suspend fun cancelScheduledNotification(notificationId: String): Result<Unit>
+    suspend fun registerFcmToken(token: String): Result<Unit>
+    
+    /**
+     * Unregister FCM token
+     * 
+     * @return Result of the operation
+     */
+    suspend fun unregisterFcmToken(): Result<Unit>
+    
+    /**
+     * Get prioritized notifications using the smart algorithm
+     * 
+     * @param limit Maximum number of notifications to retrieve
+     * @return Flow of a list of prioritized notifications
+     */
+    fun getPrioritizedNotifications(limit: Int = 20): Flow<Result<List<Notification>>>
 }
