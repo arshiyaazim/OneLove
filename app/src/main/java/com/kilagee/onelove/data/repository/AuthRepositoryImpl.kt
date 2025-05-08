@@ -1,408 +1,363 @@
 package com.kilagee.onelove.data.repository
 
-import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.PhoneAuthCredential
-import com.google.firebase.auth.PhoneAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.FirebaseStorage
+import com.kilagee.onelove.data.local.UserDao
 import com.kilagee.onelove.data.model.User
-import com.kilagee.onelove.data.model.UserSettings
-import com.kilagee.onelove.domain.model.UserDomain
 import com.kilagee.onelove.domain.repository.AuthRepository
 import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
+import timber.log.Timber
+import java.util.Date
 import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
- * Implementation of AuthRepository that uses Firebase Authentication
+ * Auth repository implementation
  */
-@Singleton
 class AuthRepositoryImpl @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
-    private val storage: FirebaseStorage
+    private val userDao: UserDao
 ) : AuthRepository {
-
-    companion object {
-        private const val USERS_COLLECTION = "users"
-    }
-
-    /**
-     * Sign in with email and password
-     */
-    override suspend fun signInWithEmailPassword(email: String, password: String): Result<UserDomain> {
-        return try {
-            val authResult = auth.signInWithEmailAndPassword(email, password).await()
-            val user = authResult.user ?: return Result.error("Authentication failed")
-            
-            // Get user profile from Firestore
-            val userDoc = firestore.collection(USERS_COLLECTION)
-                .document(user.uid)
-                .get()
-                .await()
-            
-            if (userDoc.exists()) {
-                val userData = userDoc.toObject(User::class.java)
-                if (userData != null) {
-                    // Update last login time
-                    firestore.collection(USERS_COLLECTION)
-                        .document(user.uid)
-                        .update("lastLogin", com.google.firebase.Timestamp.now())
-                        .await()
-                    
-                    Result.success(UserDomain.fromDataModel(userData))
-                } else {
-                    Result.error("Failed to parse user data")
-                }
-            } else {
-                Result.error("User profile not found")
-            }
-        } catch (e: Exception) {
-            when (e) {
-                is FirebaseAuthInvalidCredentialsException -> 
-                    Result.error("Invalid email or password", e)
-                else -> Result.error("Login failed: ${e.message}", e)
-            }
-        }
-    }
-
-    /**
-     * Sign up with email and password
-     */
-    override suspend fun signUpWithEmailPassword(
-        email: String,
-        password: String,
-        name: String,
-        phone: String
-    ): Result<UserDomain> {
-        return try {
-            val authResult = auth.createUserWithEmailAndPassword(email, password).await()
-            val user = authResult.user ?: return Result.error("Authentication failed")
-            
-            // Create user profile in Firestore
-            val newUser = User(
-                id = user.uid,
-                email = email,
-                name = name,
-                phoneNumber = phone,
-                joinDate = com.google.firebase.Timestamp.now(),
-                lastLogin = com.google.firebase.Timestamp.now(),
-                isActive = true,
-                settings = UserSettings()
-            )
-            
-            firestore.collection(USERS_COLLECTION)
-                .document(user.uid)
-                .set(newUser)
-                .await()
-            
-            Result.success(UserDomain.fromDataModel(newUser))
-        } catch (e: Exception) {
-            Result.error("Registration failed: ${e.message}", e)
-        }
-    }
-
-    /**
-     * Sign in with Google
-     */
-    override suspend fun signInWithGoogle(idToken: String): Result<UserDomain> {
-        return try {
-            val credential = GoogleAuthProvider.getCredential(idToken, null)
-            val authResult = auth.signInWithCredential(credential).await()
-            val user = authResult.user ?: return Result.error("Authentication failed")
-            
-            // Check if user already exists in Firestore
-            val userDoc = firestore.collection(USERS_COLLECTION)
-                .document(user.uid)
-                .get()
-                .await()
-            
-            if (userDoc.exists()) {
-                // User exists, update last login
-                firestore.collection(USERS_COLLECTION)
-                    .document(user.uid)
-                    .update("lastLogin", com.google.firebase.Timestamp.now())
-                    .await()
-                
-                val userData = userDoc.toObject(User::class.java)
-                if (userData != null) {
-                    Result.success(UserDomain.fromDataModel(userData))
-                } else {
-                    Result.error("Failed to parse user data")
-                }
-            } else {
-                // Create new user profile
-                val newUser = User(
-                    id = user.uid,
-                    email = user.email ?: "",
-                    name = user.displayName ?: "",
-                    photoUrl = user.photoUrl?.toString(),
-                    joinDate = com.google.firebase.Timestamp.now(),
-                    lastLogin = com.google.firebase.Timestamp.now(),
-                    isActive = true,
-                    settings = UserSettings()
-                )
-                
-                firestore.collection(USERS_COLLECTION)
-                    .document(user.uid)
-                    .set(newUser)
-                    .await()
-                
-                Result.success(UserDomain.fromDataModel(newUser))
-            }
-        } catch (e: Exception) {
-            Result.error("Google sign-in failed: ${e.message}", e)
-        }
-    }
-
-    /**
-     * Sign in with phone
-     */
-    override suspend fun signInWithPhone(
-        phone: String,
-        verificationId: String,
-        code: String
-    ): Result<UserDomain> {
-        return try {
-            val credential = PhoneAuthProvider.getCredential(verificationId, code)
-            val authResult = auth.signInWithCredential(credential).await()
-            val user = authResult.user ?: return Result.error("Authentication failed")
-            
-            // Check if user already exists in Firestore
-            val userDoc = firestore.collection(USERS_COLLECTION)
-                .document(user.uid)
-                .get()
-                .await()
-            
-            if (userDoc.exists()) {
-                // User exists, update last login
-                firestore.collection(USERS_COLLECTION)
-                    .document(user.uid)
-                    .update("lastLogin", com.google.firebase.Timestamp.now())
-                    .await()
-                
-                val userData = userDoc.toObject(User::class.java)
-                if (userData != null) {
-                    Result.success(UserDomain.fromDataModel(userData))
-                } else {
-                    Result.error("Failed to parse user data")
-                }
-            } else {
-                // Create new user profile
-                val newUser = User(
-                    id = user.uid,
-                    phoneNumber = phone,
-                    joinDate = com.google.firebase.Timestamp.now(),
-                    lastLogin = com.google.firebase.Timestamp.now(),
-                    isActive = true,
-                    settings = UserSettings()
-                )
-                
-                firestore.collection(USERS_COLLECTION)
-                    .document(user.uid)
-                    .set(newUser)
-                    .await()
-                
-                Result.success(UserDomain.fromDataModel(newUser))
-            }
-        } catch (e: Exception) {
-            when (e) {
-                is FirebaseAuthInvalidCredentialsException -> 
-                    Result.error("Invalid verification code", e)
-                else -> Result.error("Phone sign-in failed: ${e.message}", e)
-            }
-        }
-    }
-
-    /**
-     * Send phone verification code
-     * This is a placeholder as the actual implementation would involve callbacks
-     * which are handled differently in a real app
-     */
-    override suspend fun sendPhoneVerificationCode(phone: String): Result<String> {
-        // Note: In a real app, this would be implemented with PhoneAuthProvider.verifyPhoneNumber
-        // which uses callbacks, not coroutines. The actual implementation would be in the activity
-        // or fragment using the PhoneAuthProvider callbacks.
-        return Result.error("This method should be implemented in the UI layer with callbacks")
-    }
-
-    /**
-     * Reset password
-     */
-    override suspend fun resetPassword(email: String): Result<Unit> {
-        return try {
-            auth.sendPasswordResetEmail(email).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.error("Password reset failed: ${e.message}", e)
-        }
-    }
-
-    /**
-     * Sign out
-     */
-    override suspend fun signOut(): Result<Unit> {
-        return try {
-            auth.signOut()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.error("Sign out failed: ${e.message}", e)
-        }
-    }
-
-    /**
-     * Get current authenticated user
-     */
-    override suspend fun getCurrentUser(): Result<UserDomain> {
-        val firebaseUser = auth.currentUser
-            ?: return Result.error("No authenticated user")
-        
-        return try {
-            val userDoc = firestore.collection(USERS_COLLECTION)
-                .document(firebaseUser.uid)
-                .get()
-                .await()
-            
-            if (userDoc.exists()) {
-                val userData = userDoc.toObject(User::class.java)
-                if (userData != null) {
-                    Result.success(UserDomain.fromDataModel(userData))
-                } else {
-                    Result.error("Failed to parse user data")
-                }
-            } else {
-                Result.error("User profile not found")
-            }
-        } catch (e: Exception) {
-            Result.error("Error getting user: ${e.message}", e)
-        }
-    }
-
-    /**
-     * Observe authentication state
-     */
-    override fun observeAuthState(): Flow<Result<UserDomain?>> = callbackFlow {
+    
+    private val usersCollection = firestore.collection("users")
+    
+    override fun getAuthState(): Flow<Boolean> = callbackFlow {
         val authStateListener = FirebaseAuth.AuthStateListener { auth ->
-            val user = auth.currentUser
-            if (user == null) {
-                trySend(Result.success(null))
-                return@AuthStateListener
-            }
-            
-            // Get user profile from Firestore
-            firestore.collection(USERS_COLLECTION)
-                .document(user.uid)
-                .get()
-                .addOnSuccessListener { document ->
-                    if (document.exists()) {
-                        val userData = document.toObject(User::class.java)
-                        if (userData != null) {
-                            trySend(Result.success(UserDomain.fromDataModel(userData)))
-                        } else {
-                            trySend(Result.error("Failed to parse user data"))
-                        }
-                    } else {
-                        trySend(Result.error("User profile not found"))
-                    }
-                }
-                .addOnFailureListener { e ->
-                    trySend(Result.error("Error getting user: ${e.message}", e))
-                }
+            trySend(auth.currentUser != null)
         }
-        
         auth.addAuthStateListener(authStateListener)
-        
         awaitClose {
             auth.removeAuthStateListener(authStateListener)
         }
     }
-
-    /**
-     * Delete account
-     */
-    override suspend fun deleteAccount(): Result<Unit> {
-        val currentUser = auth.currentUser
-            ?: return Result.error("No authenticated user")
+    
+    override fun getCurrentUserId(): String? {
+        return auth.currentUser?.uid
+    }
+    
+    override fun getCurrentUser(): Flow<Result<User>> = flow {
+        emit(Result.Loading)
         
-        return try {
-            // Delete user data from Firestore
-            firestore.collection(USERS_COLLECTION)
-                .document(currentUser.uid)
-                .delete()
-                .await()
+        val userId = auth.currentUser?.uid
+        if (userId == null) {
+            emit(Result.Error("User not authenticated"))
+            return@flow
+        }
+        
+        try {
+            // First try to get from local database
+            val cachedUser = userDao.getUserById(userId)
+            if (cachedUser != null) {
+                emit(Result.Success(cachedUser))
+            }
             
-            // Delete user account
-            currentUser.delete().await()
-            
-            Result.success(Unit)
+            // Then get from Firestore to ensure latest data
+            val documentSnapshot = usersCollection.document(userId).get().await()
+            if (documentSnapshot.exists()) {
+                val userData = documentSnapshot.data
+                if (userData != null) {
+                    val user = mapFirestoreDataToUser(userData, userId)
+                    // Cache the user in local database
+                    userDao.insertUser(user)
+                    emit(Result.Success(user))
+                } else {
+                    emit(Result.Error("User data is null"))
+                }
+            } else {
+                emit(Result.Error("User document does not exist"))
+            }
         } catch (e: Exception) {
-            Result.error("Account deletion failed: ${e.message}", e)
+            Timber.e(e, "Error getting current user")
+            emit(Result.Error("Failed to get user: ${e.message}"))
+        }
+    }.catch { e ->
+        Timber.e(e, "Error in getCurrentUser flow")
+        emit(Result.Error("Exception: ${e.message}"))
+    }
+    
+    override suspend fun signInWithEmailPassword(email: String, password: String): Result<User> {
+        return try {
+            val authResult = auth.signInWithEmailAndPassword(email, password).await()
+            val userId = authResult.user?.uid
+            
+            if (userId != null) {
+                val documentSnapshot = usersCollection.document(userId).get().await()
+                if (documentSnapshot.exists()) {
+                    val userData = documentSnapshot.data
+                    if (userData != null) {
+                        val user = mapFirestoreDataToUser(userData, userId)
+                        userDao.insertUser(user)
+                        Result.Success(user)
+                    } else {
+                        Result.Error("User data is null")
+                    }
+                } else {
+                    // User document doesn't exist, create one
+                    val newUser = User(
+                        id = userId,
+                        name = authResult.user?.displayName ?: "User",
+                        email = email,
+                        createdAt = Date(),
+                        updatedAt = Date()
+                    )
+                    usersCollection.document(userId).set(newUser).await()
+                    userDao.insertUser(newUser)
+                    Result.Success(newUser)
+                }
+            } else {
+                Result.Error("Failed to get user ID after sign in")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error signing in with email/password")
+            Result.Error("Failed to sign in: ${e.message}")
         }
     }
-
-    /**
-     * Update password
-     */
+    
+    override suspend fun signUpWithEmailPassword(email: String, password: String, name: String): Result<User> {
+        return try {
+            val authResult = auth.createUserWithEmailAndPassword(email, password).await()
+            val userId = authResult.user?.uid
+            
+            if (userId != null) {
+                // Update display name
+                auth.currentUser?.updateProfile(
+                    com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                        .setDisplayName(name)
+                        .build()
+                )?.await()
+                
+                // Create user document in Firestore
+                val newUser = User(
+                    id = userId,
+                    name = name,
+                    email = email,
+                    createdAt = Date(),
+                    updatedAt = Date()
+                )
+                usersCollection.document(userId).set(newUser).await()
+                userDao.insertUser(newUser)
+                Result.Success(newUser)
+            } else {
+                Result.Error("Failed to get user ID after sign up")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error signing up with email/password")
+            Result.Error("Failed to sign up: ${e.message}")
+        }
+    }
+    
+    override suspend fun signInWithGoogle(idToken: String): Result<User> {
+        return try {
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            val authResult = auth.signInWithCredential(credential).await()
+            val userId = authResult.user?.uid
+            
+            if (userId != null) {
+                val documentSnapshot = usersCollection.document(userId).get().await()
+                if (documentSnapshot.exists()) {
+                    val userData = documentSnapshot.data
+                    if (userData != null) {
+                        val user = mapFirestoreDataToUser(userData, userId)
+                        userDao.insertUser(user)
+                        Result.Success(user)
+                    } else {
+                        Result.Error("User data is null")
+                    }
+                } else {
+                    // User document doesn't exist, create one
+                    val newUser = User(
+                        id = userId,
+                        name = authResult.user?.displayName ?: "User",
+                        email = authResult.user?.email ?: "",
+                        profilePictureUrl = authResult.user?.photoUrl?.toString(),
+                        createdAt = Date(),
+                        updatedAt = Date()
+                    )
+                    usersCollection.document(userId).set(newUser).await()
+                    userDao.insertUser(newUser)
+                    Result.Success(newUser)
+                }
+            } else {
+                Result.Error("Failed to get user ID after Google sign in")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error signing in with Google")
+            Result.Error("Failed to sign in with Google: ${e.message}")
+        }
+    }
+    
+    override suspend fun signOut(): Result<Unit> {
+        return try {
+            auth.signOut()
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Error signing out")
+            Result.Error("Failed to sign out: ${e.message}")
+        }
+    }
+    
+    override suspend fun resetPassword(email: String): Result<Unit> {
+        return try {
+            auth.sendPasswordResetEmail(email).await()
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Error resetting password")
+            Result.Error("Failed to reset password: ${e.message}")
+        }
+    }
+    
+    override suspend fun updateUserProfile(user: User): Result<User> {
+        return try {
+            val userId = auth.currentUser?.uid
+            if (userId == null) {
+                Result.Error("User not authenticated")
+            } else {
+                // Update Firestore document
+                val userWithUpdates = user.copy(updatedAt = Date())
+                usersCollection.document(userId).set(userWithUpdates).await()
+                
+                // Update local database
+                userDao.updateUser(userWithUpdates)
+                
+                Result.Success(userWithUpdates)
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error updating user profile")
+            Result.Error("Failed to update profile: ${e.message}")
+        }
+    }
+    
     override suspend fun updatePassword(oldPassword: String, newPassword: String): Result<Unit> {
-        val currentUser = auth.currentUser
-            ?: return Result.error("No authenticated user")
-        
         return try {
-            // Re-authenticate user
-            val email = currentUser.email
-                ?: return Result.error("User has no email")
-            
-            val credential = EmailAuthProvider.getCredential(email, oldPassword)
-            currentUser.reauthenticate(credential).await()
-            
-            // Update password
-            currentUser.updatePassword(newPassword).await()
-            
-            Result.success(Unit)
-        } catch (e: Exception) {
-            when (e) {
-                is FirebaseAuthInvalidCredentialsException -> 
-                    Result.error("Incorrect current password", e)
-                else -> Result.error("Password update failed: ${e.message}", e)
+            val user = auth.currentUser
+            if (user == null) {
+                Result.Error("User not authenticated")
+            } else {
+                // Re-authenticate user
+                val email = user.email
+                if (email != null) {
+                    val credential = com.google.firebase.auth.EmailAuthProvider.getCredential(email, oldPassword)
+                    user.reauthenticate(credential).await()
+                    
+                    // Update password
+                    user.updatePassword(newPassword).await()
+                    
+                    Result.Success(Unit)
+                } else {
+                    Result.Error("User email is null")
+                }
             }
+        } catch (e: Exception) {
+            Timber.e(e, "Error updating password")
+            Result.Error("Failed to update password: ${e.message}")
         }
     }
-
-    /**
-     * Link phone number to account
-     */
-    override suspend fun linkPhoneNumber(
-        phone: String,
-        verificationId: String,
-        code: String
-    ): Result<Unit> {
-        val currentUser = auth.currentUser
-            ?: return Result.error("No authenticated user")
-        
+    
+    override suspend fun deleteAccount(): Result<Unit> {
         return try {
-            val credential = PhoneAuthProvider.getCredential(verificationId, code)
-            currentUser.linkWithCredential(credential).await()
-            
-            // Update user profile in Firestore
-            firestore.collection(USERS_COLLECTION)
-                .document(currentUser.uid)
-                .update("phoneNumber", phone)
-                .await()
-            
-            Result.success(Unit)
-        } catch (e: Exception) {
-            when (e) {
-                is FirebaseAuthInvalidCredentialsException -> 
-                    Result.error("Invalid verification code", e)
-                else -> Result.error("Phone linking failed: ${e.message}", e)
+            val user = auth.currentUser
+            if (user == null) {
+                Result.Error("User not authenticated")
+            } else {
+                val userId = user.uid
+                
+                // Delete Firestore document
+                usersCollection.document(userId).delete().await()
+                
+                // Delete user from local database
+                userDao.getUserById(userId)?.let { userDao.deleteUser(it) }
+                
+                // Delete Firebase Auth account
+                user.delete().await()
+                
+                Result.Success(Unit)
             }
+        } catch (e: Exception) {
+            Timber.e(e, "Error deleting account")
+            Result.Error("Failed to delete account: ${e.message}")
         }
+    }
+    
+    override fun getUserProfile(userId: String?): Flow<Result<User>> = flow {
+        emit(Result.Loading)
+        
+        val targetUserId = userId ?: auth.currentUser?.uid
+        if (targetUserId == null) {
+            emit(Result.Error("User ID is null"))
+            return@flow
+        }
+        
+        try {
+            // First try to get from local database
+            val cachedUser = userDao.getUserById(targetUserId)
+            if (cachedUser != null) {
+                emit(Result.Success(cachedUser))
+            }
+            
+            // Then get from Firestore to ensure latest data
+            val documentSnapshot = usersCollection.document(targetUserId).get().await()
+            if (documentSnapshot.exists()) {
+                val userData = documentSnapshot.data
+                if (userData != null) {
+                    val user = mapFirestoreDataToUser(userData, targetUserId)
+                    // Cache the user in local database
+                    userDao.insertUser(user)
+                    emit(Result.Success(user))
+                } else {
+                    emit(Result.Error("User data is null"))
+                }
+            } else {
+                emit(Result.Error("User document does not exist"))
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error getting user profile for ID: $targetUserId")
+            emit(Result.Error("Failed to get user: ${e.message}"))
+        }
+    }.catch { e ->
+        Timber.e(e, "Error in getUserProfile flow")
+        emit(Result.Error("Exception: ${e.message}"))
+    }
+    
+    /**
+     * Map Firestore data to User model
+     */
+    private fun mapFirestoreDataToUser(data: Map<String, Any>, userId: String): User {
+        return User(
+            id = userId,
+            name = data["name"] as? String ?: "",
+            email = data["email"] as? String ?: "",
+            profilePictureUrl = data["profilePictureUrl"] as? String,
+            bio = data["bio"] as? String,
+            age = (data["age"] as? Long)?.toInt(),
+            gender = data["gender"] as? String,
+            lookingFor = (data["lookingFor"] as? List<*>)?.map { it.toString() },
+            interests = (data["interests"] as? List<*>)?.map { it.toString() },
+            location = data["location"] as? String,
+            latitude = data["latitude"] as? Double,
+            longitude = data["longitude"] as? Double,
+            isVerified = data["isVerified"] as? Boolean ?: false,
+            verificationLevel = (data["verificationLevel"] as? Long)?.toInt() ?: 0,
+            isPremium = data["isPremium"] as? Boolean ?: false,
+            subscriptionType = data["subscriptionType"] as? String,
+            subscriptionExpiryDate = (data["subscriptionExpiryDate"] as? com.google.firebase.Timestamp)?.toDate(),
+            lastActive = (data["lastActive"] as? com.google.firebase.Timestamp)?.toDate(),
+            isOnline = data["isOnline"] as? Boolean ?: false,
+            points = (data["points"] as? Long)?.toInt() ?: 0,
+            isProfileComplete = data["isProfileComplete"] as? Boolean ?: false,
+            minAgePreference = (data["minAgePreference"] as? Long)?.toInt(),
+            maxAgePreference = (data["maxAgePreference"] as? Long)?.toInt(),
+            maxDistance = (data["maxDistance"] as? Long)?.toInt(),
+            createdAt = (data["createdAt"] as? com.google.firebase.Timestamp)?.toDate(),
+            updatedAt = (data["updatedAt"] as? com.google.firebase.Timestamp)?.toDate(),
+            photos = (data["photos"] as? List<*>)?.map { it.toString() },
+            isAdmin = data["isAdmin"] as? Boolean ?: false
+        )
     }
 }

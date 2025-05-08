@@ -1,5 +1,3 @@
-rootProject.name = "OneLove"
-
 pluginManagement {
     repositories {
         google()
@@ -17,4 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
+rootProject.name = "OneLove"
 include(":app")

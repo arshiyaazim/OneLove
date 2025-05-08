@@ -1,168 +1,82 @@
 # OneLove Dating App
 
-A sophisticated Android dating and social discovery app leveraging modern mobile development technologies with AI-enhanced profile discovery and interactive social features.
+OneLove is a sophisticated Android dating and social discovery application leveraging advanced mobile technologies to create meaningful connections through intelligent, interactive social experiences.
 
 ## Features
 
-- **User Profiles:** Create and manage detailed user profiles with photos, interests, and preferences
-- **Match Discovery:** Advanced algorithm for finding compatible matches based on preferences
-- **Chat System:** Real-time chat with message notifications and media sharing
-- **Offers System:** Send and receive date offers with negotiation features
-- **Video/Audio Calls:** Premium in-app calling functionality
-- **AI Profiles:** Engage with AI profiles with dynamic response generation
-- **Points & Rewards:** Gamification system to encourage app engagement
-- **Admin Panel:** Comprehensive admin dashboard for app management
-- **Multi-tier Verification:** Identity verification system for user safety
-- **Subscription Management:** Stripe integration for premium subscriptions
-- **Dynamic Content:** Server-controlled content and feature adjustments
+- **Advanced Matching Algorithm**: Matches users based on preferences, location, and interests
+- **Real-time Chat**: Instant messaging with emoji reactions and typing indicators
+- **Audio/Video Calls**: High-quality WebRTC-based calling
+- **AI-Powered Profiles**: Enhanced user experience with AI-generated responses
+- **Premium Subscription**: Multiple subscription tiers with Stripe payment integration
+- **Multi-tier Verification**: ID, photo, and social media verification
+- **Points-based Reward System**: Gamification to encourage user engagement
+- **Admin Panel**: In-app administration dashboard
 
 ## Technology Stack
 
-- **Frontend:** Jetpack Compose for modern UI
-- **Architecture:** MVVM pattern with clean architecture separation
-- **Backend:** Firebase (Firestore, Authentication, Storage, Functions)
-- **Dependency Injection:** Hilt
-- **Messaging:** Firebase Cloud Messaging for notifications
-- **Payment Processing:** Stripe API integration
-- **Media:** WebRTC for video calls
+- **UI**: Jetpack Compose with Material 3 design
+- **Architecture**: MVVM with Clean Architecture principles
+- **Database**: Room for local persistence, Firestore for cloud storage
+- **Authentication**: Firebase Authentication
+- **Networking**: Firebase Cloud Functions, Firestore
+- **Dependency Injection**: Hilt
+- **Asynchronous Operations**: Kotlin Coroutines and Flow
+- **Payments**: Stripe SDK
+- **Media Handling**: Coil for image loading, WebRTC for calls
+- **Maps/Location**: Google Maps and Play Services Location
 
 ## Project Structure
 
-```
-app/
-├── src/
-│   ├── main/
-│   │   ├── java/com/kilagee/onelove/
-│   │   │   ├── data/           # Data layer with repositories and sources
-│   │   │   ├── di/             # Dependency injection modules
-│   │   │   ├── domain/         # Domain layer with models and use cases
-│   │   │   ├── service/        # Background services and FCM 
-│   │   │   ├── ui/             # UI components and screens
-│   │   │   ├── util/           # Utility classes
-│   │   │   └── OneLoveApplication.kt
-│   │   └── res/                # Resources (layouts, strings, etc.)
-│   ├── test/                   # Unit tests
-│   └── androidTest/            # Instrumentation tests
-├── build.gradle.kts            # App-level Gradle build config
-└── proguard-rules.pro          # ProGuard rules
-```
+- **app/src/main/java/com/kilagee/onelove/**
+  - **data/**: Data layer with models, repositories implementations, and local/remote sources
+  - **domain/**: Domain layer with repository interfaces and use cases
+  - **ui/**: Presentation layer with screens, components, and ViewModels
+  - **di/**: Dependency injection modules
+  - **services/**: Background services for notifications, etc.
+  - **util/**: Utility classes and extensions
 
-## Firebase Setup
+## Requirements
 
-The app requires a Firebase project with the following services enabled:
+- Android Studio Iguana | 2023.2.1 or newer
+- Kotlin 1.9.20 or newer
+- Java 17
+- Android Gradle Plugin 8.2.0
+- Gradle 8.2
+- Firebase project with Firestore, Authentication, and Functions enabled
+- Stripe account for payment processing
 
-- Authentication (Email/Password, Google, and Phone)
-- Firestore Database
-- Storage
-- Cloud Functions
-- Cloud Messaging
-- Crashlytics
-
-### Security Rules
-
-The project includes security rules for Firestore (`firebase/firestore.rules`) and Storage (`firebase/storage.rules`) that should be deployed to your Firebase project.
-
-## Development Setup
-
-### Prerequisites
-
-- Android Studio Iguana or later
-- JDK 17
-- Android SDK with API level 34 (Android 14.0+)
-- Firebase project with required services
-- Stripe API keys (for payment features)
-
-### Version Requirements
-
-- Android Gradle Plugin: 8.9.2
-- Kotlin: 2.0.21
-- Gradle: 8.11.1
-- Firebase BOM: 33.13.0
-- Jetpack Compose BOM: 2024.09.00
-
-### Configuration
+## Setup
 
 1. Clone the repository
-2. Create a Firebase project at [https://console.firebase.google.com/](https://console.firebase.google.com/)
-3. Add an Android app to your Firebase project with package name `com.kilagee.onelove`
-4. Download the `google-services.json` file and place it in the `app/` directory
-5. Enable the required Firebase services (Authentication, Firestore, Storage, Functions, Messaging)
-6. Deploy the Firestore and Storage security rules from the `firebase/` directory
-7. Deploy the Firebase functions from the `functions/` directory
-8. Create a `local.properties` file in the project root with the following content:
-   ```properties
-   sdk.dir=/path/to/your/android/sdk
-   STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
-   STRIPE_SECRET_KEY=your_stripe_secret_key
-   ```
-9. Build and run the project
+2. Open the project in Android Studio
+3. Set up a Firebase project and download the `google-services.json` file
+4. Place the `google-services.json` file in the app/ directory
+5. Set up a Stripe account and add your publishable key to the app
+6. Build and run the project
 
-## Production Deployment
+## Admin Panel
 
-### Building for Release
+The app includes an in-app admin panel accessible only to users with admin privileges. This panel allows:
 
-1. Update `versionCode` and `versionName` in `app/build.gradle.kts`
-2. Generate a signing key if you don't have one:
-   ```bash
-   keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias release
-   ```
-3. Create a `keystore.properties` file in the project root with your keystore details:
-   ```properties
-   storeFile=/path/to/release-key.jks
-   storePassword=your_keystore_password
-   keyAlias=release
-   keyPassword=your_key_password
-   ```
-4. Build the release APK or App Bundle:
-   ```bash
-   ./gradlew assembleRelease
-   # or for App Bundle
-   ./gradlew bundleRelease
-   ```
-5. Test the release build thoroughly before submission
+- User management (view, edit, ban)
+- Content moderation
+- Verification requests approval
+- Analytics and reporting
+- Configuration management
 
-### Google Play Submission
+## Contributing
 
-1. Create a developer account on [Google Play Console](https://play.google.com/console/)
-2. Create a new application
-3. Upload your App Bundle or APK
-4. Fill in the store listing details:
-   - Title: OneLove Dating App
-   - Short description: Discover authentic connections with OneLove, the AI-enhanced dating app
-   - Full description: (See marketing materials)
-   - Add screenshots and promotional graphics
-5. Set up content rating, pricing and distribution
-6. Submit for review
-
-## Maintenance
-
-### Firebase Remote Config
-
-The app uses Firebase Remote Config to control feature flags and app settings. The following parameters should be configured:
-
-- `min_version_code`: Minimum app version code that is supported
-- `maintenance_mode`: Boolean to enable/disable maintenance mode
-- `premium_features`: JSON array of feature IDs that require premium subscription
-- `ai_response_rate`: Speed of AI profile responses (1-10)
-
-### Database Backups
-
-Set up regular backups of Firestore data using Firebase's export functionality:
-
-```bash
-firebase firestore:export gs://your-backup-bucket/backups/$(date +%Y%m%d)
-```
-
-### Monitoring
-
-1. Set up Firebase Crashlytics alerts for crash reporting
-2. Configure Firebase Performance Monitoring for app performance insights
-3. Use Firebase Analytics to track user behavior and app usage
+Please read CONTRIBUTING.md for details on our code of conduct and the process for submitting pull requests.
 
 ## License
 
-[Insert your license information here]
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Contact
+## Acknowledgments
 
-For questions or support, contact development@kilagee.com
+- Firebase for backend services
+- Stripe for payment processing
+- WebRTC for audio and video calling
+- Google Play Services for location and maps
+- Material Design for UI guidelines

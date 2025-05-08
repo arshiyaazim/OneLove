@@ -16,68 +16,62 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Light color scheme
-private val LightColors = lightColorScheme(
-    primary = Purple40,
+// Custom OneLove Light colors
+private val LightColorScheme = lightColorScheme(
+    primary = Color(0xFFE94057),        // OneLove Red
     onPrimary = Color.White,
-    primaryContainer = Purple90,
-    onPrimaryContainer = Purple10,
-    secondary = Orange40,
+    primaryContainer = Color(0xFFFFDADB),
+    onPrimaryContainer = Color(0xFF410009),
+    secondary = Color(0xFF8A4EFF),      // Purple
     onSecondary = Color.White,
-    secondaryContainer = Orange90,
-    onSecondaryContainer = Orange10,
-    tertiary = Blue40,
+    secondaryContainer = Color(0xFFEADDFF),
+    onSecondaryContainer = Color(0xFF25005A),
+    tertiary = Color(0xFF24A19C),       // Teal
     onTertiary = Color.White,
-    tertiaryContainer = Blue90,
-    onTertiaryContainer = Blue10,
-    error = Red40,
-    errorContainer = Red90,
+    tertiaryContainer = Color(0xFFAEF1ED),
+    onTertiaryContainer = Color(0xFF002A28),
+    background = Color(0xFFFFFBFF),
+    onBackground = Color(0xFF201A1A),
+    surface = Color(0xFFFFFBFF),
+    onSurface = Color(0xFF201A1A),
+    error = Color(0xFFBA1A1A),
     onError = Color.White,
-    onErrorContainer = Red10,
-    background = Grey99,
-    onBackground = Grey10,
-    surface = Grey99,
-    onSurface = Grey10,
-    surfaceVariant = PurpleGrey90,
-    onSurfaceVariant = PurpleGrey30,
-    outline = PurpleGrey50
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002)
 )
 
-// Dark color scheme
-private val DarkColors = darkColorScheme(
-    primary = Purple80,
-    onPrimary = Purple20,
-    primaryContainer = Purple30,
-    onPrimaryContainer = Purple90,
-    secondary = Orange80,
-    onSecondary = Orange20,
-    secondaryContainer = Orange30,
-    onSecondaryContainer = Orange90,
-    tertiary = Blue80,
-    onTertiary = Blue20,
-    tertiaryContainer = Blue30,
-    onTertiaryContainer = Blue90,
-    error = Red80,
-    errorContainer = Red30,
-    onError = Red20,
-    onErrorContainer = Red90,
-    background = Grey10,
-    onBackground = Grey90,
-    surface = Grey10,
-    onSurface = Grey90,
-    surfaceVariant = PurpleGrey30,
-    onSurfaceVariant = PurpleGrey80,
-    outline = PurpleGrey60
+// Custom OneLove Dark colors
+private val DarkColorScheme = darkColorScheme(
+    primary = Color(0xFFFFB2B8),        // OneLove Red (dark variant)
+    onPrimary = Color(0xFF68000E),
+    primaryContainer = Color(0xFFC00020),
+    onPrimaryContainer = Color(0xFFFFDADB),
+    secondary = Color(0xFFD3BBFF),      // Purple (dark variant)
+    onSecondary = Color(0xFF400A8F),
+    secondaryContainer = Color(0xFF5B35B5),
+    onSecondaryContainer = Color(0xFFEADDFF),
+    tertiary = Color(0xFF8EDED9),       // Teal (dark variant)
+    onTertiary = Color(0xFF004F4A),
+    tertiaryContainer = Color(0xFF007571),
+    onTertiaryContainer = Color(0xFFAEF1ED),
+    background = Color(0xFF121212),
+    onBackground = Color(0xFFECE0DF),
+    surface = Color(0xFF121212),
+    onSurface = Color(0xFFECE0DF),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6)
 )
 
 /**
- * OneLove theme
+ * OneLove theme that applies custom colors
  */
 @Composable
 fun OneLoveTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -85,9 +79,10 @@ fun OneLoveTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColors
-        else -> LightColors
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
     }
+    
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -100,7 +95,6 @@ fun OneLoveTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        shapes = Shapes,
         content = content
     )
 }

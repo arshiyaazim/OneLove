@@ -1,238 +1,236 @@
 package com.kilagee.onelove.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.navigation.NavGraphBuilder
+import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import com.kilagee.onelove.ui.screens.auth.LoginScreen
+import com.kilagee.onelove.ui.screens.auth.RegisterScreen
+import com.kilagee.onelove.ui.screens.chat.ChatListScreen
+import com.kilagee.onelove.ui.screens.chat.ChatScreen
+import com.kilagee.onelove.ui.screens.calls.CallScreen
+import com.kilagee.onelove.ui.screens.discover.DiscoverScreen
+import com.kilagee.onelove.ui.screens.discover.ProfileDetailScreen
+import com.kilagee.onelove.ui.screens.profile.EditProfileScreen
+import com.kilagee.onelove.ui.screens.profile.MyProfileScreen
+import com.kilagee.onelove.ui.screens.settings.SettingsScreen
+import com.kilagee.onelove.ui.screens.subscription.SubscriptionScreen
 
 /**
- * Main navigation host for the OneLove app
- * Manages navigation between different screens
+ * Sealed class for navigation routes
+ */
+sealed class Screen(val route: String) {
+    object Login : Screen("login")
+    object Register : Screen("register")
+    object Discover : Screen("discover")
+    object ChatList : Screen("chat_list")
+    object Chat : Screen("chat/{chatId}") {
+        fun createRoute(chatId: String) = "chat/$chatId"
+    }
+    object Call : Screen("call/{callId}/{isVideo}") {
+        fun createRoute(callId: String, isVideo: Boolean) = "call/$callId/$isVideo"
+    }
+    object ProfileDetail : Screen("profile/{userId}") {
+        fun createRoute(userId: String) = "profile/$userId"
+    }
+    object MyProfile : Screen("my_profile")
+    object EditProfile : Screen("edit_profile")
+    object Settings : Screen("settings")
+    object Subscription : Screen("subscription")
+}
+
+/**
+ * Main navigation component for the app
  */
 @Composable
 fun OneLoveNavHost(
-    navController: NavHostController,
-    startDestination: String,
-    modifier: Modifier = Modifier
+    navController: NavHostController
 ) {
+    val actions = remember(navController) { NavigationActions(navController) }
+    
     NavHost(
         navController = navController,
-        startDestination = startDestination,
-        modifier = modifier
+        startDestination = Screen.Login.route
     ) {
-        // Authentication flow
-        authenticationGraph(navController)
+        // Auth screens
+        composable(Screen.Login.route) {
+            LoginScreen(
+                onLoginSuccess = actions.navigateToDiscover,
+                onRegisterClick = actions.navigateToRegister,
+                viewModel = hiltViewModel()
+            )
+        }
         
-        // Main screens
-        mainScreensGraph(navController)
+        composable(Screen.Register.route) {
+            RegisterScreen(
+                onRegisterSuccess = actions.navigateToDiscover,
+                onLoginClick = { navController.popBackStack() },
+                viewModel = hiltViewModel()
+            )
+        }
         
-        // Secondary screens
-        profileGraph(navController)
-        chatGraph(navController)
-        callGraph(navController)
+        // Main navigation screens
+        composable(Screen.Discover.route) {
+            DiscoverScreen(
+                onProfileClick = actions.navigateToProfileDetail,
+                onChatClick = actions.navigateToChatList,
+                onMyProfileClick = actions.navigateToMyProfile,
+                viewModel = hiltViewModel()
+            )
+        }
         
-        // Premium features
-        subscriptionGraph(navController)
+        // Chat screens
+        composable(Screen.ChatList.route) {
+            ChatListScreen(
+                onChatClick = actions.navigateToChat,
+                onBackClick = { navController.popBackStack() },
+                viewModel = hiltViewModel()
+            )
+        }
         
-        // Admin panel
-        adminGraph(navController)
+        composable(
+            route = Screen.Chat.route,
+            arguments = listOf(navArgument("chatId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
+            ChatScreen(
+                chatId = chatId,
+                onBackClick = { navController.popBackStack() },
+                onCallClick = { callId, isVideo -> actions.navigateToCall(callId, isVideo) },
+                onProfileClick = actions.navigateToProfileDetail,
+                viewModel = hiltViewModel()
+            )
+        }
+        
+        // Call screen
+        composable(
+            route = Screen.Call.route,
+            arguments = listOf(
+                navArgument("callId") { type = NavType.StringType },
+                navArgument("isVideo") { type = NavType.BoolType }
+            )
+        ) { backStackEntry ->
+            val callId = backStackEntry.arguments?.getString("callId") ?: ""
+            val isVideo = backStackEntry.arguments?.getBoolean("isVideo") ?: false
+            CallScreen(
+                callId = callId,
+                isVideo = isVideo,
+                onEndCall = { navController.popBackStack() },
+                viewModel = hiltViewModel()
+            )
+        }
+        
+        // Profile screens
+        composable(
+            route = Screen.ProfileDetail.route,
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+            ProfileDetailScreen(
+                userId = userId,
+                onBackClick = { navController.popBackStack() },
+                onChatClick = { chatId -> actions.navigateToChat(chatId) },
+                onCallClick = { callId, isVideo -> actions.navigateToCall(callId, isVideo) },
+                viewModel = hiltViewModel()
+            )
+        }
+        
+        composable(Screen.MyProfile.route) {
+            MyProfileScreen(
+                onEditProfileClick = actions.navigateToEditProfile,
+                onSettingsClick = actions.navigateToSettings,
+                onSubscriptionClick = actions.navigateToSubscription,
+                onBackClick = { navController.popBackStack() },
+                viewModel = hiltViewModel()
+            )
+        }
+        
+        composable(Screen.EditProfile.route) {
+            EditProfileScreen(
+                onSaveClick = { navController.popBackStack() },
+                onCancelClick = { navController.popBackStack() },
+                viewModel = hiltViewModel()
+            )
+        }
+        
+        // Settings
+        composable(Screen.Settings.route) {
+            SettingsScreen(
+                onBackClick = { navController.popBackStack() },
+                onLogoutSuccess = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
+                viewModel = hiltViewModel()
+            )
+        }
+        
+        // Subscription
+        composable(Screen.Subscription.route) {
+            SubscriptionScreen(
+                onBackClick = { navController.popBackStack() },
+                onSubscriptionSuccess = { navController.popBackStack() },
+                viewModel = hiltViewModel()
+            )
+        }
     }
 }
 
 /**
- * Authentication navigation graph
+ * Helper class for navigation actions
  */
-private fun NavGraphBuilder.authenticationGraph(navController: NavHostController) {
-    // Login screen
-    composable(Routes.LOGIN) {
-        // LoginScreen(navController)
+class NavigationActions(private val navController: NavHostController) {
+    
+    val navigateToLogin: () -> Unit = {
+        navController.navigate(Screen.Login.route) {
+            popUpTo(navController.graph.id) { inclusive = true }
+        }
     }
     
-    // Registration screen
-    composable(Routes.REGISTER) {
-        // RegisterScreen(navController)
+    val navigateToRegister: () -> Unit = {
+        navController.navigate(Screen.Register.route)
     }
     
-    // Forgot password screen
-    composable(Routes.FORGOT_PASSWORD) {
-        // ForgotPasswordScreen(navController)
+    val navigateToDiscover: () -> Unit = {
+        navController.navigate(Screen.Discover.route) {
+            popUpTo(navController.graph.id) { inclusive = true }
+        }
     }
     
-    // Email verification screen
-    composable(Routes.VERIFY_EMAIL) {
-        // VerifyEmailScreen(navController)
+    val navigateToChatList: () -> Unit = {
+        navController.navigate(Screen.ChatList.route)
     }
     
-    // Onboarding screens
-    composable(Routes.ONBOARDING) {
-        // OnboardingScreen(navController)
-    }
-}
-
-/**
- * Main screens navigation graph (bottom navigation)
- */
-private fun NavGraphBuilder.mainScreensGraph(navController: NavHostController) {
-    // Discover screen
-    composable(Routes.DISCOVER) {
-        // DiscoverScreen(navController)
+    val navigateToChat: (String) -> Unit = { chatId ->
+        navController.navigate(Screen.Chat.createRoute(chatId))
     }
     
-    // Matches screen
-    composable(Routes.MATCHES) {
-        // MatchesScreen(navController)
+    val navigateToCall: (String, Boolean) -> Unit = { callId, isVideo ->
+        navController.navigate(Screen.Call.createRoute(callId, isVideo))
     }
     
-    // Chat list screen
-    composable(Routes.CHAT) {
-        // ChatListScreen(navController)
+    val navigateToProfileDetail: (String) -> Unit = { userId ->
+        navController.navigate(Screen.ProfileDetail.createRoute(userId))
     }
     
-    // Profile screen
-    composable(Routes.PROFILE) {
-        // ProfileScreen(navController)
+    val navigateToMyProfile: () -> Unit = {
+        navController.navigate(Screen.MyProfile.route)
     }
     
-    // Notifications screen
-    composable(Routes.NOTIFICATIONS) {
-        // NotificationsScreen(navController)
-    }
-}
-
-/**
- * Profile and user-related navigation graph
- */
-private fun NavGraphBuilder.profileGraph(navController: NavHostController) {
-    // Profile detail screen
-    composable(
-        route = Routes.PROFILE_DETAIL,
-        arguments = listOf(navArgument("userId") { type = NavType.StringType })
-    ) { backStackEntry ->
-        val userId = backStackEntry.arguments?.getString("userId") ?: ""
-        // ProfileDetailScreen(userId = userId, navController = navController)
+    val navigateToEditProfile: () -> Unit = {
+        navController.navigate(Screen.EditProfile.route)
     }
     
-    // Edit profile screen
-    composable(Routes.EDIT_PROFILE) {
-        // EditProfileScreen(navController)
+    val navigateToSettings: () -> Unit = {
+        navController.navigate(Screen.Settings.route)
     }
     
-    // Settings screen
-    composable(Routes.SETTINGS) {
-        // SettingsScreen(navController)
-    }
-    
-    // Preferences screen
-    composable(Routes.PREFERENCES) {
-        // PreferencesScreen(navController)
-    }
-    
-    // Verification screens
-    composable(Routes.VERIFICATION) {
-        // VerificationScreen(navController)
-    }
-    
-    composable(Routes.PHOTO_VERIFICATION) {
-        // PhotoVerificationScreen(navController)
-    }
-    
-    composable(Routes.ID_VERIFICATION) {
-        // IdVerificationScreen(navController)
-    }
-}
-
-/**
- * Chat-related navigation graph
- */
-private fun NavGraphBuilder.chatGraph(navController: NavHostController) {
-    // Chat detail screen
-    composable(
-        route = Routes.CHAT_DETAIL,
-        arguments = listOf(navArgument("chatId") { type = NavType.StringType })
-    ) { backStackEntry ->
-        val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
-        // ChatDetailScreen(chatId = chatId, navController = navController)
-    }
-}
-
-/**
- * Call-related navigation graph
- */
-private fun NavGraphBuilder.callGraph(navController: NavHostController) {
-    // Call history screen
-    composable(Routes.CALL_HISTORY) {
-        // CallHistoryScreen(navController)
-    }
-    
-    // Video call screen
-    composable(
-        route = Routes.VIDEO_CALL,
-        arguments = listOf(navArgument("userId") { type = NavType.StringType })
-    ) { backStackEntry ->
-        val userId = backStackEntry.arguments?.getString("userId") ?: ""
-        // VideoCallScreen(userId = userId, navController = navController)
-    }
-    
-    // Audio call screen
-    composable(
-        route = Routes.AUDIO_CALL,
-        arguments = listOf(navArgument("userId") { type = NavType.StringType })
-    ) { backStackEntry ->
-        val userId = backStackEntry.arguments?.getString("userId") ?: ""
-        // AudioCallScreen(userId = userId, navController = navController)
-    }
-}
-
-/**
- * Subscription and payment navigation graph
- */
-private fun NavGraphBuilder.subscriptionGraph(navController: NavHostController) {
-    // Subscription screen
-    composable(Routes.SUBSCRIPTION) {
-        // SubscriptionScreen(navController)
-    }
-    
-    // Payment screen
-    composable(Routes.PAYMENT) {
-        // PaymentScreen(navController)
-    }
-    
-    // Payment history screen
-    composable(Routes.PAYMENT_HISTORY) {
-        // PaymentHistoryScreen(navController)
-    }
-}
-
-/**
- * Admin panel navigation graph
- */
-private fun NavGraphBuilder.adminGraph(navController: NavHostController) {
-    // Admin dashboard
-    composable(Routes.ADMIN_DASHBOARD) {
-        // AdminDashboardScreen(navController)
-    }
-    
-    // User management
-    composable(Routes.ADMIN_USER_MANAGEMENT) {
-        // AdminUserManagementScreen(navController)
-    }
-    
-    // Verification requests
-    composable(Routes.ADMIN_VERIFICATION_REQUESTS) {
-        // AdminVerificationRequestsScreen(navController)
-    }
-    
-    // Content moderation
-    composable(Routes.ADMIN_CONTENT_MODERATION) {
-        // AdminContentModerationScreen(navController)
-    }
-    
-    // Analytics
-    composable(Routes.ADMIN_ANALYTICS) {
-        // AdminAnalyticsScreen(navController)
+    val navigateToSubscription: () -> Unit = {
+        navController.navigate(Screen.Subscription.route)
     }
 }

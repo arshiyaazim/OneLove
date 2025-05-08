@@ -1,19 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
-        <exclude domain="sharedpref" path="device.xml"/>
-        <exclude domain="sharedpref" path="sensitive.xml"/>
-        <exclude domain="database" path="secure_data.db"/>
-        <exclude domain="root" path="cache/"/>
+        <exclude domain="sharedpref" path="device.xml" />
+        <exclude domain="sharedpref" path="sensitive.xml" />
+        <exclude domain="database" path="sensitive_data.db" />
+        <exclude domain="file" path="sensitive/" />
+        <exclude domain="file" path="temp/" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="device.xml" />
+        <exclude domain="sharedpref" path="sensitive.xml" />
+        <exclude domain="database" path="sensitive_data.db" />
+        <exclude domain="file" path="sensitive/" />
+        <exclude domain="file" path="temp/" />
     </device-transfer>
-    -->
 </data-extraction-rules>

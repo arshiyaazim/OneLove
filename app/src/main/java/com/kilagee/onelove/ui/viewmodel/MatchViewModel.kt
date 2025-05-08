@@ -3,464 +3,401 @@ package com.kilagee.onelove.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kilagee.onelove.data.model.Match
-import com.kilagee.onelove.data.model.MatchStatus
-import com.kilagee.onelove.data.model.Result
+import com.kilagee.onelove.data.model.MatchRequest
 import com.kilagee.onelove.data.model.User
-import com.kilagee.onelove.data.repository.AuthRepository
-import com.kilagee.onelove.data.repository.MatchRepository
-import com.kilagee.onelove.data.repository.UserRepository
-import com.kilagee.onelove.util.AppError
+import com.kilagee.onelove.domain.repository.MatchRepository
+import com.kilagee.onelove.domain.util.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
 /**
- * Sealed class representing match UI state
- */
-sealed class MatchUiState {
-    object Initial : MatchUiState()
-    object Loading : MatchUiState()
-    data class Error(val error: AppError, val message: String) : MatchUiState()
-    data class Success<T>(val data: T) : MatchUiState()
-}
-
-/**
- * Match operation types
- */
-enum class MatchOperation {
-    NONE,
-    FETCH_MATCHES,
-    LIKE_USER,
-    REJECT_USER,
-    UNMATCH_USER,
-    FETCH_RECOMMENDATIONS,
-    FETCH_USERS_WHO_LIKED_ME,
-    SEARCH_MATCHES
-}
-
-/**
- * ViewModel for match operations
+ * Match view model
  */
 @HiltViewModel
 class MatchViewModel @Inject constructor(
-    private val matchRepository: MatchRepository,
-    private val userRepository: UserRepository,
-    private val authRepository: AuthRepository
+    private val matchRepository: MatchRepository
 ) : ViewModel() {
     
-    // Current match UI state
-    private val _matchUiState = MutableStateFlow<MatchUiState>(MatchUiState.Initial)
-    val matchUiState: StateFlow<MatchUiState> = _matchUiState.asStateFlow()
+    private val _matches = MutableStateFlow<Result<List<Match>>>(Result.Loading)
+    val matches: StateFlow<Result<List<Match>>> = _matches
     
-    // Current match operation
-    private val _currentOperation = MutableStateFlow(MatchOperation.NONE)
-    val currentOperation: StateFlow<MatchOperation> = _currentOperation.asStateFlow()
+    private val _receivedRequests = MutableStateFlow<Result<List<MatchRequest>>>(Result.Loading)
+    val receivedRequests: StateFlow<Result<List<MatchRequest>>> = _receivedRequests
     
-    // Active matches for current user
-    private val _activeMatches = MutableStateFlow<List<Match>>(emptyList())
-    val activeMatches: StateFlow<List<Match>> = _activeMatches.asStateFlow()
+    private val _sentRequests = MutableStateFlow<Result<List<MatchRequest>>>(Result.Loading)
+    val sentRequests: StateFlow<Result<List<MatchRequest>>> = _sentRequests
     
-    // Pending matches for current user
-    private val _pendingMatches = MutableStateFlow<List<Match>>(emptyList())
-    val pendingMatches: StateFlow<List<Match>> = _pendingMatches.asStateFlow()
+    private val _usersWhoLikedMe = MutableStateFlow<Result<List<User>>>(Result.Loading)
+    val usersWhoLikedMe: StateFlow<Result<List<User>>> = _usersWhoLikedMe
     
-    // Current viewed match
-    private val _currentMatch = MutableStateFlow<Match?>(null)
-    val currentMatch: StateFlow<Match?> = _currentMatch.asStateFlow()
+    private val _recentMatches = MutableStateFlow<Result<List<Match>>>(Result.Loading)
+    val recentMatches: StateFlow<Result<List<Match>>> = _recentMatches
     
-    // Recommended matches for discovery
-    private val _recommendedMatches = MutableStateFlow<List<User>>(emptyList())
-    val recommendedMatches: StateFlow<List<User>> = _recommendedMatches.asStateFlow()
+    private val _unreadRequestCount = MutableStateFlow(0)
+    val unreadRequestCount: StateFlow<Int> = _unreadRequestCount
     
-    // Users who liked the current user
-    private val _usersWhoLikedMe = MutableStateFlow<List<User>>(emptyList())
-    val usersWhoLikedMe: StateFlow<List<User>> = _usersWhoLikedMe.asStateFlow()
+    private val _matchActionState = MutableStateFlow<MatchActionState>(MatchActionState.Idle)
+    val matchActionState: StateFlow<MatchActionState> = _matchActionState
     
-    // Match statistics
-    private val _matchStatistics = MutableStateFlow<Map<String, Int>>(emptyMap())
-    val matchStatistics: StateFlow<Map<String, Int>> = _matchStatistics.asStateFlow()
-    
-    // Current user in the discovery (for swiping)
-    private val _currentDiscoveryUser = MutableStateFlow<User?>(null)
-    val currentDiscoveryUser: StateFlow<User?> = _currentDiscoveryUser.asStateFlow()
-    
-    // Search results
-    private val _searchResults = MutableStateFlow<List<User>>(emptyList())
-    val searchResults: StateFlow<List<User>> = _searchResults.asStateFlow()
+    init {
+        loadMatches()
+        loadReceivedRequests()
+        loadSentRequests()
+        loadUsersWhoLikedMe()
+        loadRecentMatches()
+        observeUnreadRequestCount()
+    }
     
     /**
-     * Load matches for current user
+     * Load all matches for the current user
      */
     fun loadMatches() {
         viewModelScope.launch {
-            _currentOperation.value = MatchOperation.FETCH_MATCHES
-            _matchUiState.value = MatchUiState.Loading
-            
-            val userId = authRepository.getCurrentUserId() ?: return@launch
-            
-            // Load active matches
-            when (val result = matchRepository.getActiveMatchesForUser(userId)) {
-                is Result.Success -> {
-                    _activeMatches.value = result.data
-                    _matchUiState.value = MatchUiState.Success(result.data)
+            matchRepository.getMatches()
+                .catch { e ->
+                    Timber.e(e, "Error loading matches")
+                    _matches.value = Result.Error("Failed to load matches: ${e.message}")
                 }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to load active matches")
-                    Timber.e(result.error.throwable, "Error loading active matches")
+                .collect { result ->
+                    _matches.value = result
                 }
-            }
-            
-            // Load pending matches
-            when (val result = matchRepository.getPendingMatchesForUser(userId)) {
-                is Result.Success -> {
-                    _pendingMatches.value = result.data
-                }
-                is Result.Error -> {
-                    Timber.e(result.error.throwable, "Error loading pending matches")
-                }
-            }
-            
-            // Load match statistics
-            loadMatchStatistics(userId)
-            
-            _currentOperation.value = MatchOperation.NONE
         }
     }
     
     /**
-     * Load match by ID
+     * Load match requests received by the current user
      */
-    fun loadMatchById(matchId: String) {
+    fun loadReceivedRequests() {
         viewModelScope.launch {
-            _currentOperation.value = MatchOperation.FETCH_MATCHES
-            _matchUiState.value = MatchUiState.Loading
-            
-            when (val result = matchRepository.getMatchById(matchId)) {
-                is Result.Success -> {
-                    _currentMatch.value = result.data
-                    _matchUiState.value = MatchUiState.Success(result.data)
+            matchRepository.getReceivedMatchRequests()
+                .catch { e ->
+                    Timber.e(e, "Error loading received match requests")
+                    _receivedRequests.value = Result.Error("Failed to load match requests: ${e.message}")
                 }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to load match")
+                .collect { result ->
+                    _receivedRequests.value = result
                 }
-            }
-            
-            _currentOperation.value = MatchOperation.NONE
         }
     }
     
     /**
-     * Load match between users
+     * Load match requests sent by the current user
      */
-    fun loadMatchBetweenUsers(otherUserId: String) {
+    fun loadSentRequests() {
         viewModelScope.launch {
-            _currentOperation.value = MatchOperation.FETCH_MATCHES
-            _matchUiState.value = MatchUiState.Loading
-            
-            val userId = authRepository.getCurrentUserId() ?: return@launch
-            
-            when (val result = matchRepository.getMatchBetweenUsers(userId, otherUserId)) {
-                is Result.Success -> {
-                    _currentMatch.value = result.data
-                    _matchUiState.value = MatchUiState.Success(result.data)
+            matchRepository.getSentMatchRequests()
+                .catch { e ->
+                    Timber.e(e, "Error loading sent match requests")
+                    _sentRequests.value = Result.Error("Failed to load match requests: ${e.message}")
                 }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to load match")
+                .collect { result ->
+                    _sentRequests.value = result
                 }
-            }
-            
-            _currentOperation.value = MatchOperation.NONE
         }
     }
     
     /**
-     * Like user
-     */
-    fun likeUser(likedUserId: String) {
-        viewModelScope.launch {
-            _currentOperation.value = MatchOperation.LIKE_USER
-            _matchUiState.value = MatchUiState.Loading
-            
-            val userId = authRepository.getCurrentUserId() ?: return@launch
-            
-            when (val result = matchRepository.likeUser(userId, likedUserId)) {
-                is Result.Success -> {
-                    val match = result.data
-                    _matchUiState.value = MatchUiState.Success(match)
-                    
-                    // If it's a mutual match, update active matches
-                    if (match.status == MatchStatus.MATCHED) {
-                        loadMatches()
-                    }
-                    
-                    // Remove from recommended users
-                    _recommendedMatches.value = _recommendedMatches.value.filter { it.id != likedUserId }
-                    
-                    // Update current discovery user
-                    loadNextDiscoveryUser()
-                }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to like user")
-                }
-            }
-            
-            _currentOperation.value = MatchOperation.NONE
-        }
-    }
-    
-    /**
-     * Reject user
-     */
-    fun rejectUser(rejectedUserId: String) {
-        viewModelScope.launch {
-            _currentOperation.value = MatchOperation.REJECT_USER
-            _matchUiState.value = MatchUiState.Loading
-            
-            val userId = authRepository.getCurrentUserId() ?: return@launch
-            
-            when (val result = matchRepository.rejectUser(userId, rejectedUserId)) {
-                is Result.Success -> {
-                    _matchUiState.value = MatchUiState.Success(result.data)
-                    
-                    // Remove from recommended users
-                    _recommendedMatches.value = _recommendedMatches.value.filter { it.id != rejectedUserId }
-                    
-                    // Update current discovery user
-                    loadNextDiscoveryUser()
-                }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to reject user")
-                }
-            }
-            
-            _currentOperation.value = MatchOperation.NONE
-        }
-    }
-    
-    /**
-     * Unmatch user
-     */
-    fun unmatchUser(unmatchUserId: String) {
-        viewModelScope.launch {
-            _currentOperation.value = MatchOperation.UNMATCH_USER
-            _matchUiState.value = MatchUiState.Loading
-            
-            val userId = authRepository.getCurrentUserId() ?: return@launch
-            
-            when (val result = matchRepository.unmatchUser(userId, unmatchUserId)) {
-                is Result.Success -> {
-                    _matchUiState.value = MatchUiState.Success(result.data)
-                    
-                    // Update active matches
-                    _activeMatches.value = _activeMatches.value.filter { 
-                        (it.userId1 != unmatchUserId && it.userId2 != unmatchUserId) 
-                    }
-                }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to unmatch user")
-                }
-            }
-            
-            _currentOperation.value = MatchOperation.NONE
-        }
-    }
-    
-    /**
-     * Load recommended matches (discovery)
-     */
-    fun loadRecommendedMatches(limit: Int = 20) {
-        viewModelScope.launch {
-            _currentOperation.value = MatchOperation.FETCH_RECOMMENDATIONS
-            _matchUiState.value = MatchUiState.Loading
-            
-            val userId = authRepository.getCurrentUserId() ?: return@launch
-            
-            // Get IDs of users that have already been liked or rejected
-            val excludeIds = mutableListOf<String>()
-            activeMatches.value.forEach {
-                if (it.userId1 != userId) excludeIds.add(it.userId1)
-                if (it.userId2 != userId) excludeIds.add(it.userId2)
-            }
-            pendingMatches.value.forEach {
-                if (it.userId1 != userId) excludeIds.add(it.userId1)
-                if (it.userId2 != userId) excludeIds.add(it.userId2)
-            }
-            
-            when (val result = matchRepository.getRecommendedMatches(userId, limit, excludeIds)) {
-                is Result.Success -> {
-                    _recommendedMatches.value = result.data
-                    _matchUiState.value = MatchUiState.Success(result.data)
-                    
-                    // Set current discovery user if available
-                    if (result.data.isNotEmpty()) {
-                        _currentDiscoveryUser.value = result.data.first()
-                    }
-                }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to load recommended matches")
-                }
-            }
-            
-            _currentOperation.value = MatchOperation.NONE
-        }
-    }
-    
-    /**
-     * Load next user in discovery
-     */
-    fun loadNextDiscoveryUser() {
-        val recommendedUsers = _recommendedMatches.value
-        val currentUser = _currentDiscoveryUser.value
-        
-        if (recommendedUsers.isNotEmpty() && currentUser != null) {
-            val currentIndex = recommendedUsers.indexOf(currentUser)
-            if (currentIndex < recommendedUsers.size - 1) {
-                _currentDiscoveryUser.value = recommendedUsers[currentIndex + 1]
-            } else {
-                // Load more recommended users
-                loadRecommendedMatches()
-            }
-        } else if (recommendedUsers.isNotEmpty()) {
-            _currentDiscoveryUser.value = recommendedUsers.first()
-        }
-    }
-    
-    /**
-     * Load users who liked current user
+     * Load users who have liked the current user
      */
     fun loadUsersWhoLikedMe() {
         viewModelScope.launch {
-            _currentOperation.value = MatchOperation.FETCH_USERS_WHO_LIKED_ME
-            _matchUiState.value = MatchUiState.Loading
-            
-            val userId = authRepository.getCurrentUserId() ?: return@launch
-            
-            when (val result = matchRepository.getUsersWhoLikedMe(userId)) {
-                is Result.Success -> {
-                    _usersWhoLikedMe.value = result.data
-                    _matchUiState.value = MatchUiState.Success(result.data)
+            matchRepository.getUsersWhoLikedMe()
+                .catch { e ->
+                    Timber.e(e, "Error loading users who liked me")
+                    _usersWhoLikedMe.value = Result.Error("Failed to load users: ${e.message}")
                 }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to load users who liked you")
+                .collect { result ->
+                    _usersWhoLikedMe.value = result
                 }
-            }
-            
-            _currentOperation.value = MatchOperation.NONE
         }
     }
     
     /**
-     * Search potential matches with filters
+     * Load recent matches
      */
-    fun searchPotentialMatches(
-        minAge: Int? = null,
-        maxAge: Int? = null,
-        distance: Int? = null,
-        interests: List<String>? = null,
-        genders: List<String>? = null,
-        limit: Int = 20
-    ) {
+    fun loadRecentMatches() {
         viewModelScope.launch {
-            _currentOperation.value = MatchOperation.SEARCH_MATCHES
-            _matchUiState.value = MatchUiState.Loading
-            
-            val userId = authRepository.getCurrentUserId() ?: return@launch
-            
-            when (val result = matchRepository.searchPotentialMatches(
-                userId, minAge, maxAge, distance, interests, genders, limit
-            )) {
-                is Result.Success -> {
-                    _searchResults.value = result.data
-                    _matchUiState.value = MatchUiState.Success(result.data)
+            matchRepository.getRecentMatches()
+                .catch { e ->
+                    Timber.e(e, "Error loading recent matches")
+                    _recentMatches.value = Result.Error("Failed to load recent matches: ${e.message}")
                 }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to search matches")
+                .collect { result ->
+                    _recentMatches.value = result
                 }
-            }
-            
-            _currentOperation.value = MatchOperation.NONE
         }
     }
     
     /**
-     * Load match statistics for current user
+     * Observe the count of unread match requests
      */
-    private fun loadMatchStatistics(userId: String) {
+    private fun observeUnreadRequestCount() {
         viewModelScope.launch {
-            when (val result = matchRepository.getMatchStatistics(userId)) {
-                is Result.Success -> {
-                    _matchStatistics.value = result.data
+            matchRepository.getUnreadMatchRequestCount()
+                .catch { e ->
+                    Timber.e(e, "Error getting unread request count")
+                    _unreadRequestCount.value = 0
                 }
-                is Result.Error -> {
-                    Timber.e(result.error.throwable, "Error loading match statistics")
+                .collect { count ->
+                    _unreadRequestCount.value = count
                 }
-            }
         }
     }
     
     /**
-     * Report match issue
+     * Send a match request
+     * 
+     * @param recipientId ID of the recipient
+     * @param message Optional message to include with the request
      */
-    fun reportMatchIssue(matchId: String, reason: String, details: String? = null) {
+    fun sendMatchRequest(recipientId: String, message: String? = null) {
         viewModelScope.launch {
-            _matchUiState.value = MatchUiState.Loading
-            
-            val userId = authRepository.getCurrentUserId() ?: return@launch
-            
-            when (val result = matchRepository.reportMatchIssue(matchId, userId, reason, details)) {
-                is Result.Success -> {
-                    _matchUiState.value = MatchUiState.Success(Unit)
+            try {
+                _matchActionState.value = MatchActionState.Loading
+                val result = matchRepository.sendMatchRequest(recipientId, message)
+                
+                when (result) {
+                    is Result.Success -> {
+                        _matchActionState.value = MatchActionState.RequestSent(result.data)
+                        // Refresh sent requests
+                        loadSentRequests()
+                    }
+                    is Result.Error -> {
+                        _matchActionState.value = MatchActionState.Error(result.message)
+                    }
+                    is Result.Loading -> {
+                        _matchActionState.value = MatchActionState.Loading
+                    }
                 }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to report issue")
-                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error sending match request")
+                _matchActionState.value = MatchActionState.Error(e.message ?: "Failed to send request")
+            } finally {
+                // Reset state after a delay
+                kotlinx.coroutines.delay(2000)
+                _matchActionState.value = MatchActionState.Idle
             }
         }
     }
     
     /**
-     * Create chat for match
+     * Accept a match request
+     * 
+     * @param requestId ID of the request
      */
-    fun createChatForMatch(matchId: String) {
+    fun acceptMatchRequest(requestId: String) {
         viewModelScope.launch {
-            _matchUiState.value = MatchUiState.Loading
-            
-            when (val result = matchRepository.createChatForMatch(matchId)) {
-                is Result.Success -> {
-                    _matchUiState.value = MatchUiState.Success(result.data)
+            try {
+                _matchActionState.value = MatchActionState.Loading
+                val result = matchRepository.acceptMatchRequest(requestId)
+                
+                when (result) {
+                    is Result.Success -> {
+                        _matchActionState.value = MatchActionState.RequestAccepted(result.data)
+                        // Refresh matches and requests
+                        loadMatches()
+                        loadReceivedRequests()
+                        loadRecentMatches()
+                    }
+                    is Result.Error -> {
+                        _matchActionState.value = MatchActionState.Error(result.message)
+                    }
+                    is Result.Loading -> {
+                        _matchActionState.value = MatchActionState.Loading
+                    }
                 }
-                is Result.Error -> {
-                    _matchUiState.value = MatchUiState.Error(result.error, "Failed to create chat")
-                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error accepting match request")
+                _matchActionState.value = MatchActionState.Error(e.message ?: "Failed to accept request")
+            } finally {
+                // Reset state after a delay
+                kotlinx.coroutines.delay(2000)
+                _matchActionState.value = MatchActionState.Idle
             }
         }
     }
     
     /**
-     * Check if users are matched
+     * Decline a match request
+     * 
+     * @param requestId ID of the request
      */
-    fun checkIfUsersAreMatched(otherUserId: String, onResult: (Boolean) -> Unit) {
+    fun declineMatchRequest(requestId: String) {
         viewModelScope.launch {
-            val userId = authRepository.getCurrentUserId() ?: return@launch
-            
-            when (val result = matchRepository.checkIfUsersAreMatched(userId, otherUserId)) {
-                is Result.Success -> onResult(result.data)
-                is Result.Error -> onResult(false)
+            try {
+                _matchActionState.value = MatchActionState.Loading
+                val result = matchRepository.declineMatchRequest(requestId)
+                
+                when (result) {
+                    is Result.Success -> {
+                        _matchActionState.value = MatchActionState.RequestDeclined
+                        // Refresh received requests
+                        loadReceivedRequests()
+                    }
+                    is Result.Error -> {
+                        _matchActionState.value = MatchActionState.Error(result.message)
+                    }
+                    is Result.Loading -> {
+                        _matchActionState.value = MatchActionState.Loading
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error declining match request")
+                _matchActionState.value = MatchActionState.Error(e.message ?: "Failed to decline request")
+            } finally {
+                // Reset state after a delay
+                kotlinx.coroutines.delay(2000)
+                _matchActionState.value = MatchActionState.Idle
             }
         }
     }
     
     /**
-     * Reset match UI state
+     * Mark a match request as viewed
+     * 
+     * @param requestId ID of the request
      */
-    fun resetMatchState() {
-        _matchUiState.value = MatchUiState.Initial
-        _currentOperation.value = MatchOperation.NONE
+    fun markMatchRequestAsViewed(requestId: String) {
+        viewModelScope.launch {
+            try {
+                matchRepository.markMatchRequestAsViewed(requestId)
+            } catch (e: Exception) {
+                Timber.e(e, "Error marking match request as viewed")
+            }
+        }
     }
+    
+    /**
+     * Cancel a match
+     * 
+     * @param matchId ID of the match
+     */
+    fun cancelMatch(matchId: String) {
+        viewModelScope.launch {
+            try {
+                _matchActionState.value = MatchActionState.Loading
+                val result = matchRepository.cancelMatch(matchId)
+                
+                when (result) {
+                    is Result.Success -> {
+                        _matchActionState.value = MatchActionState.MatchCancelled
+                        // Refresh matches
+                        loadMatches()
+                    }
+                    is Result.Error -> {
+                        _matchActionState.value = MatchActionState.Error(result.message)
+                    }
+                    is Result.Loading -> {
+                        _matchActionState.value = MatchActionState.Loading
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error cancelling match")
+                _matchActionState.value = MatchActionState.Error(e.message ?: "Failed to cancel match")
+            } finally {
+                // Reset state after a delay
+                kotlinx.coroutines.delay(2000)
+                _matchActionState.value = MatchActionState.Idle
+            }
+        }
+    }
+    
+    /**
+     * Like a user
+     * 
+     * @param userId ID of the user to like
+     */
+    fun likeUser(userId: String) {
+        viewModelScope.launch {
+            try {
+                _matchActionState.value = MatchActionState.Loading
+                val result = matchRepository.likeUser(userId)
+                
+                when (result) {
+                    is Result.Success -> {
+                        if (result.data != null) {
+                            // A match was created (mutual like)
+                            _matchActionState.value = MatchActionState.MatchCreated(result.data)
+                            // Refresh matches
+                            loadMatches()
+                            loadRecentMatches()
+                        } else {
+                            _matchActionState.value = MatchActionState.UserLiked
+                        }
+                        // Refresh users who liked me
+                        loadUsersWhoLikedMe()
+                    }
+                    is Result.Error -> {
+                        _matchActionState.value = MatchActionState.Error(result.message)
+                    }
+                    is Result.Loading -> {
+                        _matchActionState.value = MatchActionState.Loading
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error liking user")
+                _matchActionState.value = MatchActionState.Error(e.message ?: "Failed to like user")
+            } finally {
+                // Reset state after a delay
+                kotlinx.coroutines.delay(2000)
+                _matchActionState.value = MatchActionState.Idle
+            }
+        }
+    }
+    
+    /**
+     * Unlike a user
+     * 
+     * @param userId ID of the user to unlike
+     */
+    fun unlikeUser(userId: String) {
+        viewModelScope.launch {
+            try {
+                _matchActionState.value = MatchActionState.Loading
+                val result = matchRepository.unlikeUser(userId)
+                
+                when (result) {
+                    is Result.Success -> {
+                        _matchActionState.value = MatchActionState.UserUnliked
+                        // Refresh users who liked me
+                        loadUsersWhoLikedMe()
+                    }
+                    is Result.Error -> {
+                        _matchActionState.value = MatchActionState.Error(result.message)
+                    }
+                    is Result.Loading -> {
+                        _matchActionState.value = MatchActionState.Loading
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error unliking user")
+                _matchActionState.value = MatchActionState.Error(e.message ?: "Failed to unlike user")
+            } finally {
+                // Reset state after a delay
+                kotlinx.coroutines.delay(2000)
+                _matchActionState.value = MatchActionState.Idle
+            }
+        }
+    }
+}
+
+/**
+ * Match action state
+ */
+sealed class MatchActionState {
+    object Idle : MatchActionState()
+    object Loading : MatchActionState()
+    data class RequestSent(val request: MatchRequest) : MatchActionState()
+    data class RequestAccepted(val match: Match) : MatchActionState()
+    object RequestDeclined : MatchActionState()
+    object MatchCancelled : MatchActionState()
+    object UserLiked : MatchActionState()
+    object UserUnliked : MatchActionState()
+    data class MatchCreated(val match: Match) : MatchActionState()
+    data class Error(val message: String) : MatchActionState()
 }
