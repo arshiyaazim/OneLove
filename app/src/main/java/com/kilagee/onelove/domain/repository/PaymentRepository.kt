@@ -1,12 +1,9 @@
 package com.kilagee.onelove.domain.repository
 
-import com.kilagee.onelove.data.model.Payment
-import com.kilagee.onelove.data.model.PaymentMethodDetails
-import com.kilagee.onelove.data.model.PointsPackage
-import com.kilagee.onelove.data.model.PointsTransaction
-import com.kilagee.onelove.data.model.Subscription
-import com.kilagee.onelove.data.model.SubscriptionPeriod
-import com.kilagee.onelove.data.model.SubscriptionType
+import com.kilagee.onelove.data.model.PaymentMethod
+import com.kilagee.onelove.data.model.SubscriptionPlan
+import com.kilagee.onelove.data.model.SubscriptionStatus
+import com.kilagee.onelove.data.model.Transaction
 import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
 
@@ -14,161 +11,137 @@ import kotlinx.coroutines.flow.Flow
  * Repository interface for payment and subscription operations
  */
 interface PaymentRepository {
-    
     /**
      * Get available subscription plans
+     * @return Flow of Result containing a list of subscription plans or an error
      */
-    suspend fun getSubscriptionPlans(): Result<List<SubscriptionPlan>>
+    fun getSubscriptionPlans(): Flow<Result<List<SubscriptionPlan>>>
     
     /**
-     * Get points packages
+     * Get the current user's subscription status
+     * @return Flow of Result containing the subscription status or an error
      */
-    suspend fun getPointsPackages(): Result<List<PointsPackage>>
+    fun getSubscriptionStatus(): Flow<Result<SubscriptionStatus>>
     
     /**
-     * Create a payment intent for subscription
+     * Create a payment intent for a subscription purchase
+     * @param planId ID of the subscription plan
+     * @param paymentMethodId Optional payment method ID to use
+     * @return Result containing the client secret for the payment intent or an error
      */
     suspend fun createSubscriptionPaymentIntent(
-        userId: String,
-        subscriptionType: SubscriptionType,
-        period: SubscriptionPeriod
-    ): Result<PaymentIntent>
-    
-    /**
-     * Create a payment intent for points purchase
-     */
-    suspend fun createPointsPaymentIntent(
-        userId: String,
-        pointsPackageId: String
-    ): Result<PaymentIntent>
+        planId: String,
+        paymentMethodId: String? = null
+    ): Result<String>
     
     /**
      * Confirm a payment intent
+     * @param paymentIntentId ID of the payment intent to confirm
+     * @param paymentMethodId ID of the payment method to use
+     * @return Result containing the updated payment intent status or an error
      */
     suspend fun confirmPaymentIntent(
         paymentIntentId: String,
         paymentMethodId: String
-    ): Result<PaymentIntent>
+    ): Result<String>
     
     /**
-     * Handle payment action (3D Secure, etc.)
+     * Handle additional action required for payment
+     * @param paymentIntentId ID of the payment intent
+     * @param action Action to perform
+     * @return Result containing the updated payment intent status or an error
      */
     suspend fun handlePaymentAction(
         paymentIntentId: String,
-        actionData: Map<String, String>
-    ): Result<PaymentIntent>
+        action: String
+    ): Result<String>
     
     /**
-     * Get user's current subscription
+     * Subscribe to a plan
+     * @param planId ID of the subscription plan
+     * @param paymentMethodId ID of the payment method to use
+     * @return Result containing the subscription ID or an error
      */
-    suspend fun getUserSubscription(userId: String): Result<Subscription?>
+    suspend fun subscribe(planId: String, paymentMethodId: String): Result<String>
     
     /**
-     * Get user's current subscription as a flow
+     * Cancel the current subscription
+     * @param atPeriodEnd Whether to cancel at the end of the billing period
+     * @return Result indicating success or failure
      */
-    fun getUserSubscriptionFlow(userId: String): Flow<Result<Subscription?>>
+    suspend fun cancelSubscription(atPeriodEnd: Boolean = true): Result<Unit>
     
     /**
-     * Cancel a subscription
+     * Update subscription auto-renew settings
+     * @param autoRenew Whether to auto-renew the subscription
+     * @return Result indicating success or failure
      */
-    suspend fun cancelSubscription(userId: String): Result<Subscription>
+    suspend fun updateSubscriptionAutoRenew(autoRenew: Boolean): Result<Unit>
     
     /**
-     * Update subscription auto-renewal
+     * Get the user's saved payment methods
+     * @return Flow of Result containing a list of payment methods or an error
      */
-    suspend fun updateSubscriptionAutoRenewal(userId: String, autoRenew: Boolean): Result<Subscription>
+    fun getPaymentMethods(): Flow<Result<List<PaymentMethod>>>
     
     /**
-     * Add payment method
+     * Add a new payment method
+     * @param paymentMethodId ID of the payment method to add
+     * @param isDefault Whether this should be the default payment method
+     * @return Result containing the added payment method or an error
      */
     suspend fun addPaymentMethod(
-        userId: String,
-        cardNumber: String,
-        expiryMonth: Int,
-        expiryYear: Int,
-        cvc: String,
-        cardHolderName: String
-    ): Result<PaymentMethodDetails>
+        paymentMethodId: String,
+        isDefault: Boolean = false
+    ): Result<PaymentMethod>
     
     /**
-     * Get user's payment methods
+     * Remove a payment method
+     * @param paymentMethodId ID of the payment method to remove
+     * @return Result indicating success or failure
      */
-    suspend fun getUserPaymentMethods(userId: String): Result<List<PaymentMethodDetails>>
+    suspend fun removePaymentMethod(paymentMethodId: String): Result<Unit>
     
     /**
-     * Delete a payment method
+     * Set a payment method as default
+     * @param paymentMethodId ID of the payment method to set as default
+     * @return Result indicating success or failure
      */
-    suspend fun deletePaymentMethod(userId: String, paymentMethodId: String): Result<Unit>
+    suspend fun setDefaultPaymentMethod(paymentMethodId: String): Result<Unit>
     
     /**
-     * Set default payment method
+     * Get transaction history
+     * @param limit Maximum number of transactions to return
+     * @param offset Pagination offset
+     * @return Flow of Result containing a list of transactions or an error
      */
-    suspend fun setDefaultPaymentMethod(userId: String, paymentMethodId: String): Result<Unit>
+    fun getTransactionHistory(
+        limit: Int = 20,
+        offset: Int = 0
+    ): Flow<Result<List<Transaction>>>
     
     /**
-     * Get payment history
+     * Purchase coins (in-app currency)
+     * @param packageId ID of the coin package to purchase
+     * @param paymentMethodId ID of the payment method to use
+     * @return Result containing the transaction or an error
      */
-    suspend fun getPaymentHistory(userId: String): Result<List<Payment>>
+    suspend fun purchaseCoins(
+        packageId: String,
+        paymentMethodId: String
+    ): Result<Transaction>
     
     /**
-     * Get points transactions
+     * Get the current coin balance
+     * @return Flow of Result containing the coin balance or an error
      */
-    suspend fun getPointsTransactions(userId: String): Result<List<PointsTransaction>>
+    fun getCoinBalance(): Flow<Result<Int>>
     
     /**
-     * Get user points balance
+     * Use coins for a feature
+     * @param feature Feature to use coins for
+     * @param amount Amount of coins to use
+     * @return Result indicating success or failure
      */
-    suspend fun getUserPointsBalance(userId: String): Result<Int>
-    
-    /**
-     * Get user points balance as a flow
-     */
-    fun getUserPointsBalanceFlow(userId: String): Flow<Result<Int>>
-    
-    /**
-     * Add points to user
-     */
-    suspend fun addPointsToUser(
-        userId: String,
-        points: Int,
-        description: String,
-        referenceId: String = ""
-    ): Result<Int> // Returns new balance
-    
-    /**
-     * Deduct points from user
-     */
-    suspend fun deductPointsFromUser(
-        userId: String,
-        points: Int,
-        description: String,
-        referenceId: String = ""
-    ): Result<Int> // Returns new balance
+    suspend fun useCoins(feature: String, amount: Int): Result<Int>
 }
-
-/**
- * Data class for subscription plans
- */
-data class SubscriptionPlan(
-    val id: String,
-    val type: SubscriptionType,
-    val period: SubscriptionPeriod,
-    val price: Double,
-    val currency: String,
-    val description: String,
-    val benefits: List<String>,
-    val isPopular: Boolean = false
-)
-
-/**
- * Data class for payment intents
- */
-data class PaymentIntent(
-    val id: String,
-    val clientSecret: String,
-    val amount: Double,
-    val currency: String,
-    val status: String,
-    val requiresAction: Boolean = false,
-    val actionData: Map<String, String> = mapOf()
-)

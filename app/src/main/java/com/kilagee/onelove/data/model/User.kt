@@ -1,112 +1,347 @@
 package com.kilagee.onelove.data.model
 
 import android.os.Parcelable
+import androidx.room.Entity
+import androidx.room.Ignore
+import androidx.room.PrimaryKey
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
-import com.google.firebase.firestore.PropertyName
 import kotlinx.parcelize.Parcelize
+import java.util.Date
 
 /**
- * Verification level for user accounts
- */
-enum class VerificationLevel {
-    UNVERIFIED,    // Basic account with email verification only
-    PENDING,       // Verification requested but not approved
-    PHOTO,         // Photo verification approved
-    ID,            // Identity document verification approved
-    PREMIUM        // Higher level verification with premium subscription
-}
-
-/**
- * Relationship preferences
- */
-enum class RelationshipPreference {
-    DATING,
-    FRIENDSHIP,
-    CASUAL,
-    RELATIONSHIP,
-    MARRIAGE
-}
-
-/**
- * Subscription tiers
- */
-enum class SubscriptionTier {
-    FREE,          // Free tier with limited features
-    BASIC,         // Basic paid tier
-    PREMIUM,       // Premium tier with most features
-    VIP            // VIP tier with all features and perks
-}
-
-/**
- * User activity status
+ * User status
  */
 enum class UserStatus {
-    ONLINE,
-    AWAY,
-    OFFLINE,
-    DO_NOT_DISTURB
+    ACTIVE,
+    INACTIVE,
+    SUSPENDED,
+    DELETED
 }
 
 /**
- * Main user model that represents a user profile
+ * Verification level
  */
+enum class VerificationLevel {
+    NONE,
+    BASIC,
+    PHOTO,
+    ID,
+    PREMIUM
+}
+
+/**
+ * Gender options
+ */
+enum class Gender {
+    MALE,
+    FEMALE,
+    NON_BINARY,
+    OTHER,
+    PREFER_NOT_TO_SAY
+}
+
+/**
+ * Relationship preference
+ */
+enum class RelationshipPreference {
+    FRIENDSHIP,
+    DATING,
+    RELATIONSHIP,
+    MARRIAGE,
+    CASUAL,
+    NOT_SURE
+}
+
+/**
+ * Subscription tier
+ */
+enum class SubscriptionTier {
+    BASIC,
+    PREMIUM,
+    VIP
+}
+
+/**
+ * User entity
+ */
+@Entity(tableName = "users")
 @Parcelize
 data class User(
+    @PrimaryKey
     @DocumentId
     val id: String = "",
     
-    // Basic profile information
-    val email: String = "",
+    /**
+     * User's display name
+     */
     val name: String = "",
-    val age: Int = 0,
-    val gender: String = "",
-    val bio: String = "",
-    val phone: String? = null,
     
-    // Profile photos (URLs)
-    val profilePhotoUrl: String = "",
+    /**
+     * User's email address
+     */
+    val email: String = "",
+    
+    /**
+     * User's age
+     */
+    val age: Int? = null,
+    
+    /**
+     * User's gender
+     */
+    val gender: Gender? = null,
+    
+    /**
+     * User's preferred gender(s) for dating/matching
+     */
+    val preferredGenders: List<Gender> = emptyList(),
+    
+    /**
+     * Minimum age preference for matching
+     */
+    val minAgePreference: Int? = null,
+    
+    /**
+     * Maximum age preference for matching
+     */
+    val maxAgePreference: Int? = null,
+    
+    /**
+     * User's preferred relationship type(s)
+     */
+    val relationshipPreferences: List<RelationshipPreference> = emptyList(),
+    
+    /**
+     * User's profile bio
+     */
+    val bio: String = "",
+    
+    /**
+     * User's profile picture URL
+     */
+    val profilePictureUrl: String? = null,
+    
+    /**
+     * Additional photos URLs
+     */
     val photoUrls: List<String> = emptyList(),
     
-    // Location data
+    /**
+     * User's location (city, state)
+     */
+    val location: String? = null,
+    
+    /**
+     * User's latitude
+     */
     val latitude: Double? = null,
+    
+    /**
+     * User's longitude
+     */
     val longitude: Double? = null,
-    val locationName: String = "",
     
-    // Preferences and interests
-    val relationshipPreferences: List<RelationshipPreference> = emptyList(),
+    /**
+     * User's occupation
+     */
+    val occupation: String? = null,
+    
+    /**
+     * User's education
+     */
+    val education: String? = null,
+    
+    /**
+     * User's interests
+     */
     val interests: List<String> = emptyList(),
-    val minAgePreference: Int = 18,
-    val maxAgePreference: Int = 50,
-    val genderPreferences: List<String> = emptyList(),
-    val maxDistance: Int = 50,
     
-    // Verification and status
-    val verificationLevel: VerificationLevel = VerificationLevel.UNVERIFIED,
-    val isProfileComplete: Boolean = false,
-    val status: UserStatus = UserStatus.OFFLINE,
-    val lastActive: Timestamp = Timestamp.now(),
+    /**
+     * User's about me sections (key-value pairs for customizable profile sections)
+     */
+    val aboutMe: Map<String, String> = emptyMap(),
     
-    // Subscription information
-    val subscriptionTier: SubscriptionTier = SubscriptionTier.FREE,
-    val subscriptionExpiryDate: Timestamp? = null,
-    val points: Int = 0,
+    /**
+     * User's FCM token for push notifications
+     */
+    val fcmToken: String? = null,
     
-    // Security and analytics
-    val deviceTokens: List<String> = emptyList(),
-    @PropertyName("created_at")
-    val createdAt: Timestamp = Timestamp.now(),
-    @PropertyName("updated_at") 
-    val updatedAt: Timestamp = Timestamp.now(),
+    /**
+     * Whether user is online
+     */
+    val isOnline: Boolean = false,
     
-    // Engagement metrics
-    val matchCount: Int = 0,
-    val messageCount: Int = 0,
-    val profileViewCount: Int = 0,
-    val likeCount: Int = 0,
+    /**
+     * Last time user was online
+     */
+    val lastOnline: Timestamp? = null,
     
-    // Admin fields
+    /**
+     * User's verification level
+     */
+    val verificationLevel: VerificationLevel = VerificationLevel.NONE,
+    
+    /**
+     * User's subscription tier
+     */
+    val subscriptionTier: SubscriptionTier? = null,
+    
+    /**
+     * Subscription expiration date
+     */
+    val subscriptionExpiresAt: Timestamp? = null,
+    
+    /**
+     * User's rating (1-5)
+     */
+    val rating: Float? = null,
+    
+    /**
+     * Number of ratings received
+     */
+    val ratingCount: Int = 0,
+    
+    /**
+     * List of IDs of users this user has liked
+     */
+    val likedUserIds: List<String> = emptyList(),
+    
+    /**
+     * List of IDs of users who have liked this user
+     */
+    val likedByUserIds: List<String> = emptyList(),
+    
+    /**
+     * List of IDs of users this user has matched with
+     */
+    val matchedUserIds: List<String> = emptyList(),
+    
+    /**
+     * List of IDs of users this user has blocked
+     */
+    val blockedUserIds: List<String> = emptyList(),
+    
+    /**
+     * User's status
+     */
+    val status: UserStatus = UserStatus.ACTIVE,
+    
+    /**
+     * Whether the user is an admin
+     */
     val isAdmin: Boolean = false,
-    val isModerated: Boolean = false,
-    val isBanned: Boolean = false
-) : Parcelable
+    
+    /**
+     * User's preferences for matching algorithm
+     */
+    val algorithmPreferences: Map<String, Any> = emptyMap(),
+    
+    /**
+     * User's notification preferences
+     */
+    val notificationPreferences: Map<String, Boolean> = emptyMap(),
+    
+    /**
+     * User's privacy settings
+     */
+    val privacySettings: Map<String, Boolean> = emptyMap(),
+    
+    /**
+     * Maximum distance for matching (in kilometers)
+     */
+    val maxDistance: Int? = null,
+    
+    /**
+     * Available coins for in-app purchases
+     */
+    val coins: Int = 0,
+    
+    /**
+     * Last location update timestamp
+     */
+    val locationUpdatedAt: Timestamp? = null,
+    
+    /**
+     * Account creation timestamp
+     */
+    val createdAt: Timestamp = Timestamp.now(),
+    
+    /**
+     * Last profile update timestamp
+     */
+    val updatedAt: Timestamp = Timestamp.now()
+) : Parcelable {
+    
+    /**
+     * Check if user is verified
+     */
+    fun isVerified(): Boolean {
+        return verificationLevel != VerificationLevel.NONE
+    }
+    
+    /**
+     * Check if user is premium
+     */
+    fun isPremium(): Boolean {
+        return subscriptionTier != null && 
+            (subscriptionExpiresAt == null || 
+             subscriptionExpiresAt.toDate().after(Date()))
+    }
+    
+    /**
+     * Check if user has completed basic profile
+     */
+    fun hasCompletedBasicProfile(): Boolean {
+        return name.isNotBlank() && 
+            age != null && 
+            gender != null && 
+            bio.isNotBlank() && 
+            profilePictureUrl != null
+    }
+    
+    /**
+     * Get user's display name (first name + initial)
+     */
+    fun getDisplayName(): String {
+        val parts = name.split(" ")
+        return if (parts.size > 1) {
+            "${parts[0]} ${parts[1].first()}."
+        } else {
+            name
+        }
+    }
+    
+    /**
+     * Get subscription days remaining
+     */
+    fun getSubscriptionDaysRemaining(): Int {
+        if (subscriptionTier == null || subscriptionExpiresAt == null) {
+            return 0
+        }
+        
+        val now = Date().time
+        val expiry = subscriptionExpiresAt.toDate().time
+        
+        if (now > expiry) {
+            return 0
+        }
+        
+        return ((expiry - now) / (1000 * 60 * 60 * 24)).toInt()
+    }
+    
+    /**
+     * Check if location is available and recent (within 24 hours)
+     */
+    fun hasRecentLocation(): Boolean {
+        if (latitude == null || longitude == null || locationUpdatedAt == null) {
+            return false
+        }
+        
+        val now = Date().time
+        val lastUpdate = locationUpdatedAt.toDate().time
+        val oneDayInMillis = 24 * 60 * 60 * 1000
+        
+        return (now - lastUpdate) < oneDayInMillis
+    }
+}

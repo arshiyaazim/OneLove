@@ -144,7 +144,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     
     // WebRTC (Video/Audio calls)
-    implementation("com.github.webrtc-sdk:android:114.5735.02")
+    implementation("io.github.webrtc-sdk:android:104.5112.09")
     
     // Camera
     implementation("androidx.camera:camera-camera2:1.3.0")

@@ -1,118 +1,122 @@
 package com.kilagee.onelove.domain.util
 
 /**
- * A sealed class that holds a successful outcome with data of type [T] or a failure with an optional error message.
+ * A generic class that holds a value or an error status.
  * 
- * Used throughout the app to handle success/failure outcomes in a consistent way.
+ * @param T The type of the value.
+ * @property data The value if the result is successful.
+ * @property message The error message if the result is not successful.
+ * @property error The error type.
  */
 sealed class Result<out T> {
     /**
-     * Represents successful operations with data
+     * Success result with data
      */
     data class Success<out T>(val data: T) : Result<T>()
     
     /**
-     * Represents failed operations with optional error message and throwable
+     * Error result with message
      */
     data class Error(
-        val message: String? = null,
-        val exception: Throwable? = null
+        val message: String,
+        val error: Exception? = null
     ) : Result<Nothing>()
     
     /**
-     * Represents operations in progress
+     * Loading state
      */
     object Loading : Result<Nothing>()
-    
-    /**
-     * Returns true if this result represents a successful outcome
-     */
-    val isSuccess: Boolean
-        get() = this is Success
-    
-    /**
-     * Returns true if this result represents a failed outcome
-     */
-    val isError: Boolean
-        get() = this is Error
-    
-    /**
-     * Returns true if this result represents a loading state
-     */
-    val isLoading: Boolean
-        get() = this is Loading
-    
-    /**
-     * Returns the encapsulated data if this instance represents [Success] or null otherwise
-     */
-    fun getOrNull(): T? = when (this) {
-        is Success -> data
-        else -> null
+}
+
+/**
+ * Returns true if this result is [Result.Success].
+ */
+val <T> Result<T>.isSuccess: Boolean
+    get() = this is Result.Success
+
+/**
+ * Returns true if this result is [Result.Error].
+ */
+val <T> Result<T>.isError: Boolean
+    get() = this is Result.Error
+
+/**
+ * Returns true if this result is [Result.Loading].
+ */
+val <T> Result<T>.isLoading: Boolean
+    get() = this is Result.Loading
+
+/**
+ * Returns the data if this is [Result.Success] or null otherwise.
+ */
+fun <T> Result<T>.getOrNull(): T? {
+    return if (this is Result.Success) {
+        data
+    } else {
+        null
     }
-    
-    /**
-     * Returns the encapsulated data if this instance represents [Success] or calls [defaultValue] function otherwise
-     */
-    inline fun getOrElse(defaultValue: () -> T): T = when (this) {
-        is Success -> data
-        else -> defaultValue()
+}
+
+/**
+ * Returns the data if this is [Result.Success] or throws otherwise.
+ */
+fun <T> Result<T>.getOrThrow(): T {
+    when (this) {
+        is Result.Success -> return data
+        is Result.Error -> throw error ?: Exception(message)
+        is Result.Loading -> throw IllegalStateException("Result is in Loading state")
     }
-    
-    /**
-     * Returns this if result is [Success] or executes [transform] function with this error result and returns the result
-     */
-    inline fun <R> fold(
-        onSuccess: (T) -> R,
-        onError: (Error) -> R,
-        onLoading: () -> R
-    ): R = when (this) {
-        is Success -> onSuccess(data)
-        is Error -> onError(this)
-        is Loading -> onLoading()
+}
+
+/**
+ * Maps the current result to a new result using the provided transform function.
+ */
+inline fun <T, R> Result<T>.map(transform: (T) -> R): Result<R> {
+    return when (this) {
+        is Result.Success -> Result.Success(transform(data))
+        is Result.Error -> Result.Error(message, error)
+        is Result.Loading -> Result.Loading
     }
-    
-    /**
-     * Maps the success value of this result using [transform]
-     */
-    inline fun <R> map(transform: (T) -> R): Result<R> = when (this) {
-        is Success -> Success(transform(data))
-        is Error -> this
-        is Loading -> this
+}
+
+/**
+ * Returns the result of the given [transform] function applied to the encapsulated value
+ * if this instance is [Result.Success]. Otherwise, returns this instance.
+ */
+inline fun <T, R> Result<T>.flatMap(transform: (T) -> Result<R>): Result<R> {
+    return when (this) {
+        is Result.Success -> transform(data)
+        is Result.Error -> Result.Error(message, error)
+        is Result.Loading -> Result.Loading
     }
-    
-    /**
-     * Maps the error value of this result using [transform]
-     */
-    inline fun mapError(transform: (Error) -> Error): Result<T> = when (this) {
-        is Success -> this
-        is Error -> transform(this)
-        is Loading -> this
+}
+
+/**
+ * Executes the given [action] if this is a [Result.Success].
+ */
+inline fun <T> Result<T>.onSuccess(action: (T) -> Unit): Result<T> {
+    if (this is Result.Success) {
+        action(data)
     }
-    
-    companion object {
-        /**
-         * Creates a success result with the given data
-         */
-        fun <T> success(data: T): Result<T> = Success(data)
-        
-        /**
-         * Creates an error result with the given message and exception
-         */
-        fun error(message: String? = null, exception: Throwable? = null): Result<Nothing> = 
-            Error(message, exception)
-        
-        /**
-         * Creates a loading result
-         */
-        fun <T> loading(): Result<T> = Loading
-        
-        /**
-         * Wraps a block of code that may throw an exception into a Result
-         */
-        inline fun <T> runCatching(block: () -> T): Result<T> = try {
-            Success(block())
-        } catch (e: Exception) {
-            Error(e.message, e)
-        }
+    return this
+}
+
+/**
+ * Executes the given [action] if this is a [Result.Error].
+ */
+inline fun <T> Result<T>.onError(action: (String, Exception?) -> Unit): Result<T> {
+    if (this is Result.Error) {
+        action(message, error)
     }
+    return this
+}
+
+/**
+ * Executes the given [action] if this is a [Result.Loading].
+ */
+inline fun <T> Result<T>.onLoading(action: () -> Unit): Result<T> {
+    if (this is Result.Loading) {
+        action()
+    }
+    return this
 }

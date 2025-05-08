@@ -5,100 +5,87 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import androidx.room.Update
-import com.kilagee.onelove.data.local.entity.UserEntity
-import com.kilagee.onelove.data.model.VerificationStatus
+import com.kilagee.onelove.data.model.User
+import com.kilagee.onelove.data.model.UserInteraction
+import com.kilagee.onelove.data.model.VerificationRequest
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Room DAO for User entity operations
+ * Data Access Object for User-related operations
  */
 @Dao
 interface UserDao {
     
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertUser(user: UserEntity)
+    // User queries
+    @Query("SELECT * FROM users WHERE id = :userId")
+    fun getUserById(userId: String): Flow<User?>
+    
+    @Query("SELECT * FROM users WHERE id IN (:userIds)")
+    fun getUsersByIds(userIds: List<String>): Flow<List<User>>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertUsers(users: List<UserEntity>)
+    suspend fun insertUser(user: User)
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertUsers(users: List<User>)
     
     @Update
-    suspend fun updateUser(user: UserEntity)
+    suspend fun updateUser(user: User)
     
     @Delete
-    suspend fun deleteUser(user: UserEntity)
+    suspend fun deleteUser(user: User)
     
-    @Query("DELETE FROM users WHERE id = :userId")
-    suspend fun deleteUserById(userId: String)
+    @Query("DELETE FROM users")
+    suspend fun deleteAllUsers()
     
-    @Query("SELECT * FROM users WHERE id = :userId")
-    suspend fun getUserById(userId: String): UserEntity?
+    // Verification requests
+    @Query("SELECT * FROM verification_requests WHERE userId = :userId ORDER BY createdAt DESC LIMIT 1")
+    fun getLatestVerificationRequest(userId: String): Flow<VerificationRequest?>
     
-    @Query("SELECT * FROM users WHERE id = :userId")
-    fun getUserByIdFlow(userId: String): Flow<UserEntity?>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertVerificationRequest(request: VerificationRequest)
     
-    @Query("SELECT * FROM users WHERE email = :email")
-    suspend fun getUserByEmail(email: String): UserEntity?
+    @Update
+    suspend fun updateVerificationRequest(request: VerificationRequest)
     
-    @Query("SELECT * FROM users ORDER BY displayName")
-    suspend fun getAllUsers(): List<UserEntity>
+    // User interactions
+    @Query("SELECT * FROM user_interactions WHERE userId = :userId ORDER BY timestamp DESC LIMIT :limit")
+    fun getUserInteractions(userId: String, limit: Int): Flow<List<UserInteraction>>
     
-    @Query("SELECT * FROM users ORDER BY displayName")
-    fun getAllUsersFlow(): Flow<List<UserEntity>>
+    @Query("SELECT * FROM user_interactions ORDER BY timestamp DESC LIMIT :limit")
+    fun getRecentInteractions(limit: Int): Flow<List<UserInteraction>>
     
-    @Query("SELECT * FROM users WHERE displayName LIKE :searchQuery OR email LIKE :searchQuery ORDER BY displayName LIMIT 20")
-    suspend fun searchUsers(searchQuery: String): List<UserEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertUserInteraction(interaction: UserInteraction)
     
-    @Query("SELECT * FROM users WHERE isOnline = 1 ORDER BY lastActive DESC")
-    suspend fun getOnlineUsers(): List<UserEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertUserInteractions(interactions: List<UserInteraction>)
     
-    @Query("SELECT * FROM users WHERE verificationStatus = :status")
-    suspend fun getUsersByVerificationStatus(status: String): List<UserEntity>
+    @Query("DELETE FROM user_interactions WHERE timestamp < :timestamp")
+    suspend fun deleteOldInteractions(timestamp: Long)
     
-    @Query("SELECT * FROM users WHERE verificationStatus = 'VERIFIED'")
-    suspend fun getVerifiedUsers(): List<UserEntity>
+    // Search
+    @Query("SELECT * FROM users WHERE name LIKE '%' || :query || '%' LIMIT :limit")
+    fun searchUsersByName(query: String, limit: Int): Flow<List<User>>
     
-    @Query("SELECT * FROM users WHERE isAdmin = 1")
-    suspend fun getAdminUsers(): List<UserEntity>
-    
-    @Query("SELECT * FROM users WHERE isPremium = 1")
-    suspend fun getPremiumUsers(): List<UserEntity>
-    
-    @Query("UPDATE users SET isOnline = :isOnline WHERE id = :userId")
-    suspend fun updateUserOnlineStatus(userId: String, isOnline: Boolean)
-    
-    @Query("UPDATE users SET lastActive = :timestamp WHERE id = :userId")
-    suspend fun updateUserLastActive(userId: String, timestamp: Long)
-    
-    @Query("UPDATE users SET points = points + :points WHERE id = :userId")
-    suspend fun addUserPoints(userId: String, points: Int)
-    
-    @Query("UPDATE users SET points = points - :points WHERE id = :userId AND points >= :points")
-    suspend fun subtractUserPoints(userId: String, points: Int): Int
-    
-    @Query("UPDATE users SET isPremium = :isPremium WHERE id = :userId")
-    suspend fun updateUserPremiumStatus(userId: String, isPremium: Boolean)
-    
-    @Transaction
-    suspend fun updateUserVerificationStatus(userId: String, status: VerificationStatus) {
-        updateUserVerificationStatusInternal(userId, status.name)
-        if (status == VerificationStatus.VERIFIED) {
-            updateUserIsVerified(userId, true)
-        } else if (status == VerificationStatus.REJECTED || status == VerificationStatus.NOT_VERIFIED) {
-            updateUserIsVerified(userId, false)
-        }
-    }
-    
-    @Query("UPDATE users SET verificationStatus = :status WHERE id = :userId")
-    suspend fun updateUserVerificationStatusInternal(userId: String, status: String)
-    
-    @Query("UPDATE users SET isVerified = :isVerified WHERE id = :userId")
-    suspend fun updateUserIsVerified(userId: String, isVerified: Boolean)
-    
-    @Query("SELECT COUNT(*) FROM users")
-    suspend fun getUserCount(): Int
-    
-    @Query("SELECT COUNT(*) FROM users WHERE isPremium = 1")
-    suspend fun getPremiumUserCount(): Int
+    // Location-based queries
+    @Query("""
+        SELECT *, 
+        ((latitude - :lat) * (latitude - :lat) + (longitude - :lon) * (longitude - :lon)) AS distance 
+        FROM users 
+        WHERE id NOT IN (:excludeIds) 
+        AND (:minAge IS NULL OR age >= :minAge) 
+        AND (:maxAge IS NULL OR age <= :maxAge)
+        ORDER BY distance 
+        LIMIT :limit
+    """)
+    fun getNearbyUsers(
+        lat: Double, 
+        lon: Double, 
+        limit: Int, 
+        excludeIds: List<String>,
+        minAge: Int?,
+        maxAge: Int?
+    ): Flow<List<User>>
 }

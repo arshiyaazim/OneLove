@@ -1,95 +1,112 @@
 package com.kilagee.onelove.data.local.dao
 
 import androidx.room.Dao
-import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
-import com.kilagee.onelove.data.local.entity.MatchEntity
+import com.kilagee.onelove.data.model.Match
+import com.kilagee.onelove.data.model.MatchRequest
+import com.kilagee.onelove.data.model.MatchRequestStatus
+import com.kilagee.onelove.data.model.MatchStatus
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Room DAO for Match entity operations
+ * Data Access Object for Match-related operations
  */
 @Dao
 interface MatchDao {
     
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMatch(match: MatchEntity)
+    // Match queries
+    @Query("SELECT * FROM matches WHERE id = :matchId")
+    fun getMatchById(matchId: String): Flow<Match?>
+    
+    @Query("SELECT * FROM matches WHERE :userId IN (userIds) ORDER BY createdAt DESC")
+    fun getMatchesForUser(userId: String): Flow<List<Match>>
+    
+    @Query("SELECT * FROM matches WHERE :userId IN (userIds) AND status = :status ORDER BY createdAt DESC")
+    fun getMatchesForUserByStatus(userId: String, status: MatchStatus): Flow<List<Match>>
+    
+    @Query("""
+        SELECT * FROM matches 
+        WHERE :userId IN (userIds) 
+        AND (SELECT COUNT(*) FROM messages WHERE chatId = matches.chatId) = 0
+        AND status = 'ACTIVE'
+        ORDER BY createdAt DESC
+    """)
+    fun getNewMatchesWithoutMessages(userId: String): Flow<List<Match>>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMatches(matches: List<MatchEntity>)
+    suspend fun insertMatch(match: Match)
+    
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMatches(matches: List<Match>)
     
     @Update
-    suspend fun updateMatch(match: MatchEntity)
+    suspend fun updateMatch(match: Match)
     
-    @Delete
-    suspend fun deleteMatch(match: MatchEntity)
+    @Query("UPDATE matches SET status = :status WHERE id = :matchId")
+    suspend fun updateMatchStatus(matchId: String, status: MatchStatus)
     
     @Query("DELETE FROM matches WHERE id = :matchId")
     suspend fun deleteMatchById(matchId: String)
     
-    @Query("SELECT * FROM matches WHERE id = :matchId")
-    suspend fun getMatchById(matchId: String): MatchEntity?
+    // Match requests
+    @Query("SELECT * FROM match_requests WHERE id = :requestId")
+    fun getMatchRequestById(requestId: String): Flow<MatchRequest?>
     
-    @Query("SELECT * FROM matches WHERE id = :matchId")
-    fun getMatchByIdFlow(matchId: String): Flow<MatchEntity?>
+    @Query("SELECT * FROM match_requests WHERE senderId = :userId OR recipientId = :userId ORDER BY createdAt DESC")
+    fun getMatchRequestsForUser(userId: String): Flow<List<MatchRequest>>
     
-    @Query("SELECT * FROM matches WHERE userId1 = :userId OR userId2 = :userId ORDER BY createdAt DESC")
-    suspend fun getMatchesForUser(userId: String): List<MatchEntity>
+    @Query("SELECT * FROM match_requests WHERE senderId = :userId ORDER BY createdAt DESC")
+    fun getSentMatchRequests(userId: String): Flow<List<MatchRequest>>
     
-    @Query("SELECT * FROM matches WHERE userId1 = :userId OR userId2 = :userId ORDER BY createdAt DESC")
-    fun getMatchesForUserFlow(userId: String): Flow<List<MatchEntity>>
+    @Query("SELECT * FROM match_requests WHERE recipientId = :userId ORDER BY createdAt DESC")
+    fun getReceivedMatchRequests(userId: String): Flow<List<MatchRequest>>
     
-    @Query("SELECT * FROM matches WHERE (userId1 = :userId OR userId2 = :userId) AND status = 'MATCHED' ORDER BY matchedAt DESC")
-    suspend fun getActiveMatchesForUser(userId: String): List<MatchEntity>
+    @Query("SELECT * FROM match_requests WHERE recipientId = :userId AND status = :status ORDER BY createdAt DESC")
+    fun getReceivedMatchRequestsByStatus(userId: String, status: MatchRequestStatus): Flow<List<MatchRequest>>
     
-    @Query("SELECT * FROM matches WHERE (userId1 = :userId OR userId2 = :userId) AND status = 'PENDING' ORDER BY createdAt DESC")
-    suspend fun getPendingMatchesForUser(userId: String): List<MatchEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMatchRequest(request: MatchRequest)
     
-    @Query("SELECT * FROM matches WHERE (userId1 = :userId1 AND userId2 = :userId2) OR (userId1 = :userId2 AND userId2 = :userId1) LIMIT 1")
-    suspend fun getMatchBetweenUsers(userId1: String, userId2: String): MatchEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMatchRequests(requests: List<MatchRequest>)
     
-    @Query("SELECT * FROM matches WHERE chatId = :chatId")
-    suspend fun getMatchByChatId(chatId: String): MatchEntity?
+    @Update
+    suspend fun updateMatchRequest(request: MatchRequest)
     
-    @Query("UPDATE matches SET status = :status WHERE id = :matchId")
-    suspend fun updateMatchStatus(matchId: String, status: String)
+    @Query("UPDATE match_requests SET status = :status WHERE id = :requestId")
+    suspend fun updateMatchRequestStatus(requestId: String, status: MatchRequestStatus)
     
-    @Query("UPDATE matches SET user1LikedUser2 = :liked WHERE id = :matchId")
-    suspend fun updateUser1Liked(matchId: String, liked: Boolean)
+    @Query("UPDATE match_requests SET viewedAt = :timestamp WHERE id = :requestId")
+    suspend fun markMatchRequestAsViewed(requestId: String, timestamp: Long)
     
-    @Query("UPDATE matches SET user2LikedUser1 = :liked WHERE id = :matchId")
-    suspend fun updateUser2Liked(matchId: String, liked: Boolean)
+    @Query("DELETE FROM match_requests WHERE id = :requestId")
+    suspend fun deleteMatchRequestById(requestId: String)
     
-    @Query("UPDATE matches SET user1RejectedUser2 = :rejected WHERE id = :matchId")
-    suspend fun updateUser1Rejected(matchId: String, rejected: Boolean)
-    
-    @Query("UPDATE matches SET user2RejectedUser1 = :rejected WHERE id = :matchId")
-    suspend fun updateUser2Rejected(matchId: String, rejected: Boolean)
-    
-    @Query("UPDATE matches SET chatId = :chatId WHERE id = :matchId")
-    suspend fun updateMatchChatId(matchId: String, chatId: String)
-    
-    @Query("UPDATE matches SET hasActiveOffers = :hasActiveOffers WHERE id = :matchId")
-    suspend fun updateMatchHasActiveOffers(matchId: String, hasActiveOffers: Boolean)
-    
-    @Query("UPDATE matches SET lastMessageTime = :lastMessageTime WHERE id = :matchId")
-    suspend fun updateMatchLastMessageTime(matchId: String, lastMessageTime: Long)
-    
-    @Query("UPDATE matches SET matchedAt = :matchedAt WHERE id = :matchId")
-    suspend fun updateMatchedAt(matchId: String, matchedAt: Long)
-    
-    @Query("UPDATE matches SET unmatchedAt = :unmatchedAt WHERE id = :matchId")
-    suspend fun updateUnmatchedAt(matchId: String, unmatchedAt: Long)
-    
-    @Query("UPDATE matches SET user1Notified = :notified WHERE id = :matchId")
-    suspend fun updateUser1Notified(matchId: String, notified: Boolean)
-    
-    @Query("UPDATE matches SET user2Notified = :notified WHERE id = :matchId")
-    suspend fun updateUser2Notified(matchId: String, notified: Boolean)
-    
-    @Query("SELECT COUNT(*) FROM matches WHERE (userId1 = :userId OR userId2 = :userId) AND status = 'MATCHED'")
-    suspend fun getActiveMatchCount(userId: String): Int
+    // Suggestions
+    @Transaction
+    @Query("""
+        SELECT u.* FROM users u
+        WHERE u.id NOT IN (
+            SELECT CASE 
+                WHEN userIds[0] = :userId THEN userIds[1]
+                ELSE userIds[0]
+            END
+            FROM matches
+            WHERE :userId IN (userIds)
+        )
+        AND u.id NOT IN (
+            SELECT senderId FROM match_requests WHERE recipientId = :userId
+        )
+        AND u.id NOT IN (
+            SELECT recipientId FROM match_requests WHERE senderId = :userId
+        )
+        AND u.id != :userId
+        ORDER BY RANDOM()
+        LIMIT :limit
+    """)
+    fun getMatchSuggestions(userId: String, limit: Int): Flow<List<Match>>
 }

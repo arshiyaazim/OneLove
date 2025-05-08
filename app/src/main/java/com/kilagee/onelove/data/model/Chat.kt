@@ -1,138 +1,158 @@
 package com.kilagee.onelove.data.model
 
+import android.os.Parcelable
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
-import com.google.firebase.firestore.ServerTimestamp
+import kotlinx.parcelize.Parcelize
+import java.util.UUID
 
 /**
- * Chat data class for Firestore mapping
+ * Chat entity representing a conversation between two or more users
  */
+@Entity(tableName = "chats")
+@Parcelize
 data class Chat(
+    @PrimaryKey
     @DocumentId
-    val id: String = "",
+    val id: String = UUID.randomUUID().toString(),
     
-    // Basic info
-    val name: String = "",
-    val description: String = "",
-    val photoUrl: String? = null,
-    
-    // Participants
+    /**
+     * List of participant user IDs
+     */
     val participantIds: List<String> = emptyList(),
-    val participantNames: List<String> = emptyList(),
-    val participantPhotos: List<String> = emptyList(),
+    
+    /**
+     * Last message in the chat
+     */
+    val lastMessage: String? = null,
+    
+    /**
+     * ID of the last message
+     */
+    val lastMessageId: String? = null,
+    
+    /**
+     * ID of the user who sent the last message
+     */
+    val lastMessageSenderId: String? = null,
+    
+    /**
+     * Type of the last message
+     */
+    val lastMessageType: String? = null,
+    
+    /**
+     * Timestamp of the last message
+     */
+    val lastMessageTimestamp: Timestamp? = null,
+    
+    /**
+     * Name of the chat (for group chats)
+     */
+    val name: String? = null,
+    
+    /**
+     * URL of the chat avatar (for group chats)
+     */
+    val avatarUrl: String? = null,
+    
+    /**
+     * Whether the chat is a group chat
+     */
     val isGroupChat: Boolean = false,
-    val adminIds: List<String> = emptyList(),
     
-    // Last message
-    val lastMessage: String = "",
-    val lastMessageType: String = "",
-    val lastMessageTime: Timestamp? = null,
-    val lastMessageSenderId: String = "",
-    
-    // Status
-    val isActive: Boolean = true,
-    val isArchived: Boolean = false,
-    val isPinned: Boolean = false,
+    /**
+     * Map of user IDs to their unread message counts
+     */
     val unreadCounts: Map<String, Int> = emptyMap(),
-    val typingUsers: List<String> = emptyList(),
     
-    // Settings
-    val muteNotifications: Map<String, Boolean> = emptyMap(),
-    val customNotificationSound: Map<String, String> = emptyMap(),
-    
-    // Timestamps
-    @ServerTimestamp
-    val createdAt: Timestamp? = null,
-    
-    @ServerTimestamp
-    val updatedAt: Timestamp? = null,
-    
-    // Metadata
-    val metadata: Map<String, Any> = emptyMap()
-) {
     /**
-     * Get chat name for a given user (for 1:1 chats)
+     * Map of user IDs to their typing status
      */
-    fun getChatNameForUser(userId: String): String {
-        return if (isGroupChat || participantIds.size != 2) {
-            name
-        } else {
-            val index = participantIds.indexOf(userId)
-            if (index == 0 && participantNames.size > 1) {
-                participantNames[1]
-            } else if (index == 1 && participantNames.isNotEmpty()) {
-                participantNames[0]
-            } else {
-                name
-            }
+    val typingStatus: Map<String, Boolean> = emptyMap(),
+    
+    /**
+     * Whether the chat is pinned
+     */
+    val isPinned: Boolean = false,
+    
+    /**
+     * Whether the chat is muted
+     */
+    val isMuted: Boolean = false,
+    
+    /**
+     * Custom metadata for the chat
+     */
+    val metadata: Map<String, String> = emptyMap(),
+    
+    /**
+     * Timestamp when the chat was created
+     */
+    val createdAt: Timestamp = Timestamp.now(),
+    
+    /**
+     * Timestamp when the chat was last updated
+     */
+    val updatedAt: Timestamp = Timestamp.now()
+) : Parcelable {
+    
+    /**
+     * Get the other participant in a one-on-one chat
+     * 
+     * @param currentUserId ID of the current user
+     * @return ID of the other participant or null if not a one-on-one chat
+     */
+    fun getOtherParticipantId(currentUserId: String): String? {
+        if (isGroupChat || participantIds.size != 2) {
+            return null
         }
+        
+        return participantIds.firstOrNull { it != currentUserId }
     }
     
     /**
-     * Get chat avatar URL for a given user (for 1:1 chats)
+     * Get the unread count for a user
+     * 
+     * @param userId ID of the user
+     * @return Number of unread messages
      */
-    fun getChatAvatarForUser(userId: String): String? {
-        return if (isGroupChat || participantIds.size != 2) {
-            photoUrl
-        } else {
-            val index = participantIds.indexOf(userId)
-            if (index == 0 && participantPhotos.size > 1) {
-                participantPhotos[1]
-            } else if (index == 1 && participantPhotos.isNotEmpty()) {
-                participantPhotos[0]
-            } else {
-                photoUrl
-            }
-        }
-    }
-    
-    /**
-     * Get the other participant's ID in a 1:1 chat
-     */
-    fun getOtherParticipantId(userId: String): String? {
-        return if (isGroupChat || participantIds.size != 2) {
-            null
-        } else {
-            participantIds.firstOrNull { it != userId }
-        }
-    }
-    
-    /**
-     * Get unread count for a user
-     */
-    fun getUnreadCountForUser(userId: String): Int {
+    fun getUnreadCount(userId: String): Int {
         return unreadCounts[userId] ?: 0
     }
     
     /**
-     * Check if notifications are muted for a user
+     * Check if a user is typing
+     * 
+     * @param userId ID of the user
+     * @return True if the user is typing
      */
-    fun isNotificationsMutedForUser(userId: String): Boolean {
-        return muteNotifications[userId] == true
+    fun isUserTyping(userId: String): Boolean {
+        return typingStatus[userId] == true
     }
     
     /**
-     * Get formatted last message time
+     * Get a list of typing user IDs
+     * 
+     * @return List of user IDs who are currently typing
      */
-    fun getFormattedLastMessageTime(): String {
-        val date = lastMessageTime?.toDate() ?: return ""
-        val now = java.util.Date()
-        val diff = now.time - date.time
-        
-        val seconds = diff / 1000
-        val minutes = seconds / 60
-        val hours = minutes / 60
-        val days = hours / 24
-        
+    fun getTypingUserIds(): List<String> {
+        return typingStatus.filter { it.value }.keys.toList()
+    }
+    
+    /**
+     * Get chat display name based on whether it's a group chat or not
+     * 
+     * @param otherUserName Name of the other participant in a one-on-one chat
+     * @return Display name for the chat
+     */
+    fun getDisplayName(otherUserName: String?): String {
         return when {
-            seconds < 60 -> "Just now"
-            minutes < 60 -> "$minutes min"
-            hours < 24 -> "$hours h"
-            days < 7 -> "$days d"
-            else -> {
-                val formatter = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault())
-                formatter.format(date)
-            }
+            isGroupChat && !name.isNullOrBlank() -> name
+            !isGroupChat && otherUserName != null -> otherUserName
+            else -> "Chat"
         }
     }
 }

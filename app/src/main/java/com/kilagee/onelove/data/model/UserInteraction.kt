@@ -1,71 +1,165 @@
 package com.kilagee.onelove.data.model
 
+import android.os.Parcelable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentId
+import kotlinx.parcelize.Parcelize
 import java.util.UUID
 
 /**
- * Types of user interactions tracked for analytics and personalization
+ * Types of user interactions
  */
 enum class InteractionType {
-    MESSAGE_SENT,
-    MESSAGE_READ,
     PROFILE_VIEW,
     LIKE,
-    DISLIKE,
-    MATCH_ACCEPTED,
+    UNLIKE,
+    MATCH,
+    UNMATCH,
+    MESSAGE_SENT,
+    MESSAGE_READ,
     CALL_INITIATED,
-    CALL_ACCEPTED,
+    CALL_ANSWERED,
     CALL_DECLINED,
-    CALL_ENDED,
-    PROFILE_EDIT,
+    CALL_MISSED,
+    BLOCK,
+    UNBLOCK,
+    REPORT,
+    SUBSCRIPTION_PURCHASED,
+    COIN_PURCHASE,
+    FEATURE_USED,
     APP_OPEN,
     APP_CLOSE,
     SEARCH,
     FILTER_CHANGE,
-    SUBSCRIPTION_VIEW,
-    IN_APP_PURCHASE,
-    FEATURE_USAGE,
-    FEED_SCROLL,
-    NOTIFICATION_OPEN
+    LOCATION_UPDATE,
+    PROFILE_UPDATE,
+    SETTINGS_CHANGE
 }
 
 /**
- * Entity that tracks user interactions with the app
- * Used for personalization, analytics, and notification prioritization
+ * User interaction entity for tracking all interactions within the app
  */
 @Entity(tableName = "user_interactions")
+@Parcelize
 data class UserInteraction(
     @PrimaryKey
+    @DocumentId
     val id: String = UUID.randomUUID().toString(),
+    
+    /**
+     * ID of the user performing the interaction
+     */
+    val userId: String = "",
+    
+    /**
+     * ID of the target user (if applicable)
+     */
+    val targetUserId: String? = null,
     
     /**
      * Type of interaction
      */
-    val type: InteractionType,
+    val type: InteractionType = InteractionType.PROFILE_VIEW,
     
     /**
-     * ID of the user who is the target of this interaction (optional)
+     * Additional details about the interaction
      */
-    val userId: String? = null,
+    val details: Map<String, String> = emptyMap(),
     
     /**
-     * Timestamp when this interaction occurred
+     * The screen or location in the app where the interaction occurred
      */
-    val timestamp: Long = System.currentTimeMillis(),
+    val location: String? = null,
     
     /**
-     * Duration of the interaction in milliseconds (if applicable)
+     * Whether the interaction was performed by an AI (e.g., recommendation system)
      */
-    val durationMs: Long? = null,
+    val isAutomated: Boolean = false,
     
     /**
-     * Screen or feature where the interaction occurred
+     * Duration of the interaction in seconds (if applicable)
      */
-    val source: String? = null,
+    val durationSeconds: Long? = null,
     
     /**
-     * Additional metadata as JSON string
+     * Session ID for grouping interactions
      */
-    val metadata: String? = null
-)
+    val sessionId: String? = null,
+    
+    /**
+     * Timestamp when the interaction occurred
+     */
+    val timestamp: Timestamp = Timestamp.now()
+) : Parcelable {
+    
+    /**
+     * Check if this is a positive interaction
+     */
+    fun isPositiveInteraction(): Boolean {
+        return when (type) {
+            InteractionType.LIKE,
+            InteractionType.MATCH,
+            InteractionType.MESSAGE_SENT,
+            InteractionType.MESSAGE_READ,
+            InteractionType.CALL_ANSWERED,
+            InteractionType.SUBSCRIPTION_PURCHASED,
+            InteractionType.COIN_PURCHASE,
+            InteractionType.FEATURE_USED -> true
+            else -> false
+        }
+    }
+    
+    /**
+     * Check if this is a negative interaction
+     */
+    fun isNegativeInteraction(): Boolean {
+        return when (type) {
+            InteractionType.UNLIKE,
+            InteractionType.UNMATCH,
+            InteractionType.CALL_DECLINED,
+            InteractionType.CALL_MISSED,
+            InteractionType.BLOCK,
+            InteractionType.REPORT -> true
+            else -> false
+        }
+    }
+    
+    /**
+     * Check if this is a monetization-related interaction
+     */
+    fun isMonetizationInteraction(): Boolean {
+        return when (type) {
+            InteractionType.SUBSCRIPTION_PURCHASED,
+            InteractionType.COIN_PURCHASE,
+            InteractionType.FEATURE_USED -> true
+            else -> false
+        }
+    }
+    
+    /**
+     * Check if this is a communication interaction
+     */
+    fun isCommunicationInteraction(): Boolean {
+        return when (type) {
+            InteractionType.MESSAGE_SENT,
+            InteractionType.MESSAGE_READ,
+            InteractionType.CALL_INITIATED,
+            InteractionType.CALL_ANSWERED,
+            InteractionType.CALL_DECLINED,
+            InteractionType.CALL_MISSED -> true
+            else -> false
+        }
+    }
+    
+    /**
+     * Get duration formatted as mm:ss
+     */
+    fun getFormattedDuration(): String? {
+        val seconds = durationSeconds ?: return null
+        val minutes = seconds / 60
+        val remainingSeconds = seconds % 60
+        return "%02d:%02d".format(minutes, remainingSeconds)
+    }
+}

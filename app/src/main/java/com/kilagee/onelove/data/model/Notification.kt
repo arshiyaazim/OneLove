@@ -1,63 +1,78 @@
 package com.kilagee.onelove.data.model
 
+import android.os.Parcelable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentId
+import kotlinx.parcelize.Parcelize
 import java.util.UUID
 
 /**
- * Notification types for the app
+ * Notification types
  */
 enum class NotificationType {
-    NEW_MATCH,
+    MATCH,
     MESSAGE,
-    INCOMING_CALL,
-    MISSED_CALL,
-    LIKE,
+    CALL_MISSED,
+    VERIFICATION_APPROVED,
+    SUBSCRIPTION_EXPIRING,
+    PAYMENT_SUCCESS,
+    PAYMENT_FAILED,
     PROFILE_VIEW,
-    SUBSCRIPTION,
-    VERIFICATION,
-    SYSTEM,
-    PROMOTIONAL
+    APP_UPDATE,
+    SYSTEM
 }
 
 /**
- * Notification entity that represents a single notification
- * Stored in Room database and used for in-app notifications
+ * Notification entity
  */
 @Entity(tableName = "notifications")
+@Parcelize
 data class Notification(
     @PrimaryKey
+    @DocumentId
     val id: String = UUID.randomUUID().toString(),
+    
+    /**
+     * ID of the user who will receive the notification
+     */
+    val userId: String = "",
     
     /**
      * Type of notification
      */
-    val type: NotificationType,
+    val type: NotificationType = NotificationType.SYSTEM,
     
     /**
-     * User ID of the sender
+     * Notification title
      */
-    val senderId: String,
+    val title: String = "",
     
     /**
-     * Title of the notification
+     * Notification content
      */
-    val title: String,
+    val content: String = "",
     
     /**
-     * Body content of the notification
+     * ID of the user related to the notification (if applicable)
      */
-    val body: String,
+    val relatedUserId: String? = null,
     
     /**
-     * Optional image URL
+     * ID of the chat related to the notification (if applicable)
      */
-    val imageUrl: String? = null,
+    val chatId: String? = null,
     
     /**
-     * Timestamp when the notification was created
+     * ID of the match related to the notification (if applicable)
      */
-    val timestamp: Long = System.currentTimeMillis(),
+    val matchId: String? = null,
+    
+    /**
+     * Custom data for the notification
+     */
+    val data: Map<String, String> = emptyMap(),
     
     /**
      * Whether the notification has been read
@@ -65,12 +80,59 @@ data class Notification(
     val isRead: Boolean = false,
     
     /**
-     * Deep link URL for navigation when notification is tapped
+     * When the notification was read
      */
-    val deepLink: String? = null,
+    val readAt: Timestamp? = null,
     
     /**
-     * Optional metadata as JSON string
+     * Timestamp when the notification was created
      */
-    val metadata: String? = null
-)
+    val createdAt: Timestamp = Timestamp.now()
+) : Parcelable {
+    
+    /**
+     * Mark this notification as read
+     */
+    fun markAsRead(): Notification {
+        if (isRead) {
+            return this
+        }
+        return copy(isRead = true, readAt = Timestamp.now())
+    }
+    
+    /**
+     * Get notification deep link
+     */
+    fun getDeepLink(): String? {
+        return when (type) {
+            NotificationType.MATCH -> matchId?.let { "onelove://matches/$it" }
+            NotificationType.MESSAGE -> chatId?.let { "onelove://chat/$it" }
+            NotificationType.CALL_MISSED -> relatedUserId?.let { "onelove://call-history" }
+            NotificationType.VERIFICATION_APPROVED -> "onelove://profile/verification"
+            NotificationType.SUBSCRIPTION_EXPIRING -> "onelove://subscription"
+            NotificationType.PAYMENT_SUCCESS, 
+            NotificationType.PAYMENT_FAILED -> "onelove://payment-history"
+            NotificationType.PROFILE_VIEW -> relatedUserId?.let { "onelove://profile/$it" }
+            NotificationType.APP_UPDATE -> "onelove://settings"
+            NotificationType.SYSTEM -> null
+        }
+    }
+    
+    /**
+     * Get notification icon resource name
+     */
+    fun getIconResourceName(): String {
+        return when (type) {
+            NotificationType.MATCH -> "ic_notification_match"
+            NotificationType.MESSAGE -> "ic_notification_message"
+            NotificationType.CALL_MISSED -> "ic_notification_call_missed"
+            NotificationType.VERIFICATION_APPROVED -> "ic_notification_verified"
+            NotificationType.SUBSCRIPTION_EXPIRING -> "ic_notification_subscription"
+            NotificationType.PAYMENT_SUCCESS -> "ic_notification_payment_success"
+            NotificationType.PAYMENT_FAILED -> "ic_notification_payment_failed"
+            NotificationType.PROFILE_VIEW -> "ic_notification_profile_view"
+            NotificationType.APP_UPDATE -> "ic_notification_update"
+            NotificationType.SYSTEM -> "ic_notification_system"
+        }
+    }
+}

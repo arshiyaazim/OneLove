@@ -1,123 +1,97 @@
 package com.kilagee.onelove.domain.repository
 
 import com.kilagee.onelove.data.model.Notification
-import com.kilagee.onelove.data.model.NotificationType
-import com.kilagee.onelove.data.model.PushNotificationSettings
 import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
-import java.util.Date
 
 /**
- * Interface for notification-related operations
+ * Repository interface for notification operations
  */
 interface NotificationRepository {
-    
     /**
      * Get all notifications for the current user
-     * @param limit Maximum number of notifications to fetch
-     * @param offset Offset for pagination
-     * @return List of [Notification] objects
+     * @param limit Maximum number of notifications to return
+     * @param offset Pagination offset
+     * @return Flow of Result containing a list of notifications or an error
      */
-    suspend fun getNotifications(limit: Int = 20, offset: Int = 0): Result<List<Notification>>
+    fun getNotifications(limit: Int = 20, offset: Int = 0): Flow<Result<List<Notification>>>
     
     /**
-     * Get notifications as a flow for real-time updates
-     * @param limit Maximum number of notifications to fetch initially
-     * @return Flow of [Notification] lists
+     * Get unread notifications for the current user
+     * @param limit Maximum number of notifications to return
+     * @return Flow of Result containing a list of notifications or an error
      */
-    fun getNotificationsFlow(limit: Int = 20): Flow<Result<List<Notification>>>
+    fun getUnreadNotifications(limit: Int = 20): Flow<Result<List<Notification>>>
     
     /**
-     * Get unread notifications count
-     * @return Number of unread notifications
+     * Mark a notification as read
+     * @param notificationId ID of the notification to mark as read
+     * @return Result indicating success or failure
      */
-    suspend fun getUnreadCount(): Result<Int>
-    
-    /**
-     * Get unread count as a flow for real-time updates
-     * @return Flow of unread count
-     */
-    fun getUnreadCountFlow(): Flow<Result<Int>>
-    
-    /**
-     * Mark notifications as read
-     * @param notificationIds List of notification IDs to mark as read
-     */
-    suspend fun markAsRead(notificationIds: List<String>): Result<Unit>
+    suspend fun markNotificationAsRead(notificationId: String): Result<Unit>
     
     /**
      * Mark all notifications as read
+     * @return Result indicating success or failure
      */
-    suspend fun markAllAsRead(): Result<Unit>
+    suspend fun markAllNotificationsAsRead(): Result<Unit>
     
     /**
      * Delete a notification
      * @param notificationId ID of the notification to delete
+     * @return Result indicating success or failure
      */
     suspend fun deleteNotification(notificationId: String): Result<Unit>
     
     /**
      * Delete all notifications
+     * @return Result indicating success or failure
      */
     suspend fun deleteAllNotifications(): Result<Unit>
     
     /**
-     * Get notification settings
-     * @return The [PushNotificationSettings] for the current user
+     * Get the count of unread notifications
+     * @return Flow of Result containing the unread count or an error
      */
-    suspend fun getNotificationSettings(): Result<PushNotificationSettings>
+    fun getUnreadNotificationCount(): Flow<Result<Int>>
     
     /**
-     * Update notification settings
-     * @param settings The updated [PushNotificationSettings]
+     * Register the device for push notifications
+     * @return Result indicating success or failure
      */
-    suspend fun updateNotificationSettings(settings: PushNotificationSettings): Result<Unit>
+    suspend fun registerDevice(): Result<Unit>
     
     /**
-     * Register device token for push notifications
-     * @param token FCM token or APNS token
-     * @param platform Platform type (ANDROID, IOS, WEB)
+     * Unregister the device from push notifications
+     * @return Result indicating success or failure
      */
-    suspend fun registerDeviceToken(token: String, platform: String): Result<Unit>
+    suspend fun unregisterDevice(): Result<Unit>
     
     /**
-     * Unregister device token for push notifications
-     * @param token FCM token or APNS token to unregister
+     * Update notification preferences
+     * @param preferences Map of notification types to boolean preferences
+     * @return Result indicating success or failure
      */
-    suspend fun unregisterDeviceToken(token: String): Result<Unit>
+    suspend fun updateNotificationPreferences(preferences: Map<String, Boolean>): Result<Unit>
     
     /**
-     * Send test notification
-     * @param type Type of notification to test
+     * Get notification preferences
+     * @return Flow of Result containing a map of notification types to boolean preferences
      */
-    suspend fun sendTestNotification(type: NotificationType): Result<Unit>
+    fun getNotificationPreferences(): Flow<Result<Map<String, Boolean>>>
     
     /**
-     * Get notification by ID
-     * @param notificationId ID of the notification to retrieve
-     * @return The [Notification] object
+     * Schedule a local notification
+     * @param notification Notification to schedule
+     * @param delayMillis Delay in milliseconds
+     * @return Result containing the notification ID or an error
      */
-    suspend fun getNotification(notificationId: String): Result<Notification>
+    suspend fun scheduleLocalNotification(notification: Notification, delayMillis: Long): Result<String>
     
     /**
-     * Get notifications by type
-     * @param type Type of notifications to retrieve
-     * @param limit Maximum number of notifications to fetch
-     * @return List of [Notification] objects
+     * Cancel a scheduled local notification
+     * @param notificationId ID of the notification to cancel
+     * @return Result indicating success or failure
      */
-    suspend fun getNotificationsByType(
-        type: NotificationType,
-        limit: Int = 20
-    ): Result<List<Notification>>
-    
-    /**
-     * Get notifications created after a specific date
-     * @param date Date to filter notifications by
-     * @param limit Maximum number of notifications to fetch
-     * @return List of [Notification] objects
-     */
-    suspend fun getNotificationsAfter(
-        date: Date,
-        limit: Int = 20
-    ): Result<List<Notification>>
+    suspend fun cancelScheduledNotification(notificationId: String): Result<Unit>
 }

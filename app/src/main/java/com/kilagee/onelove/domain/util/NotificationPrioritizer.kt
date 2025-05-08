@@ -2,170 +2,153 @@ package com.kilagee.onelove.domain.util
 
 import com.kilagee.onelove.data.model.Notification
 import com.kilagee.onelove.data.model.NotificationType
-import com.kilagee.onelove.data.model.UserInteraction
-import com.kilagee.onelove.data.model.UserPreferences
-import timber.log.Timber
-import javax.inject.Inject
-import javax.inject.Singleton
+import com.kilagee.onelove.data.model.User
+import java.util.Date
 
 /**
- * Smart notification prioritization system that uses contextual data
- * to determine notification importance and delivery methods.
- * 
- * This class implements algorithms that adapt to user behavior patterns,
- * interaction history, and time-of-day to provide a more personalized
- * notification experience.
+ * Utility class that prioritizes notifications based on context and user preferences.
+ * Implements a smart algorithm to determine which notifications should be shown to the user
+ * and in what order.
  */
-@Singleton
-class NotificationPrioritizer @Inject constructor() {
-
+class NotificationPrioritizer {
+    
     /**
-     * Prioritize a list of notifications based on various factors
+     * Prioritize notifications based on type, content, time, and user context
      * 
      * @param notifications List of notifications to prioritize
-     * @param userPreferences User preferences for notifications
-     * @param userInteractions Recent user interactions with the app
-     * @param currentTime Current device time in milliseconds
-     * @return Sorted list of notifications by priority
+     * @param currentUser The current user
+     * @param userPreferences User notification preferences
+     * @param currentTime Current time (for testing)
+     * @return Prioritized list of notifications
      */
     fun prioritizeNotifications(
         notifications: List<Notification>,
-        userPreferences: UserPreferences,
-        userInteractions: List<UserInteraction>,
-        currentTime: Long
+        currentUser: User,
+        userPreferences: Map<NotificationType, Boolean>,
+        currentTime: Date = Date()
     ): List<Notification> {
-        if (notifications.isEmpty()) return emptyList()
-        
-        Timber.d("Prioritizing ${notifications.size} notifications")
-        
-        return notifications.sortedByDescending { notification ->
-            calculateNotificationScore(
-                notification,
-                userPreferences,
-                userInteractions,
-                currentTime
-            )
+        // Filter out notifications based on user preferences
+        val filteredNotifications = notifications.filter { notification ->
+            userPreferences[notification.type] ?: true
         }
+        
+        // Score each notification based on multiple factors
+        val scoredNotifications = filteredNotifications.map { notification ->
+            val score = calculateNotificationScore(
+                notification = notification,
+                currentUser = currentUser,
+                currentTime = currentTime
+            )
+            Pair(notification, score)
+        }
+        
+        // Return notifications sorted by score (higher score = higher priority)
+        return scoredNotifications
+            .sortedByDescending { it.second }
+            .map { it.first }
     }
     
     /**
-     * Calculate a priority score for a single notification
-     * 
-     * Higher scores indicate higher priority notifications
+     * Calculate a priority score for a notification based on multiple factors
      * 
      * @param notification The notification to score
-     * @param userPreferences User preferences for notifications
-     * @param userInteractions Recent user interactions with the app
-     * @param currentTime Current device time in milliseconds
-     * @return Priority score (higher = more important)
+     * @param currentUser The current user
+     * @param currentTime Current time
+     * @return Priority score (higher is more important)
      */
     private fun calculateNotificationScore(
         notification: Notification,
-        userPreferences: UserPreferences,
-        userInteractions: List<UserInteraction>,
-        currentTime: Long
+        currentUser: User,
+        currentTime: Date
     ): Double {
         var score = 0.0
         
-        // Base score by notification type
+        // Base score based on notification type
         score += when (notification.type) {
-            NotificationType.NEW_MATCH -> 100.0
+            NotificationType.MATCH -> 100.0
             NotificationType.MESSAGE -> 90.0
-            NotificationType.INCOMING_CALL -> 120.0
-            NotificationType.MISSED_CALL -> 80.0
-            NotificationType.LIKE -> 60.0
-            NotificationType.PROFILE_VIEW -> 40.0
-            NotificationType.SUBSCRIPTION -> 70.0
-            NotificationType.VERIFICATION -> 85.0
-            NotificationType.SYSTEM -> 30.0
-            NotificationType.PROMOTIONAL -> 10.0
+            NotificationType.CALL_MISSED -> 85.0
+            NotificationType.VERIFICATION_APPROVED -> 80.0
+            NotificationType.SUBSCRIPTION_EXPIRING -> 75.0
+            NotificationType.PAYMENT_SUCCESS -> 70.0
+            NotificationType.PAYMENT_FAILED -> 95.0
+            NotificationType.PROFILE_VIEW -> 60.0
+            NotificationType.APP_UPDATE -> 50.0
+            NotificationType.SYSTEM -> 40.0
         }
         
-        // Adjust score based on user preferences
-        if (userPreferences.priorityContacts.contains(notification.senderId)) {
-            score *= 1.5 // 50% boost for priority contacts
+        // Recency factor: newer notifications get higher priority
+        val ageInHours = (currentTime.time - notification.createdAt.toDate().time) / (1000 * 60 * 60.0)
+        val recencyScore = Math.max(0.0, 100.0 - (ageInHours * 2)) // Degrades over time
+        score += recencyScore
+        
+        // User engagement factor: if the notification is from someone the user interacts with frequently
+        if (notification.relatedUserId != null) {
+            val interactionScore = calculateInteractionScore(currentUser, notification.relatedUserId)
+            score += interactionScore
         }
         
-        if (userPreferences.mutedContacts.contains(notification.senderId)) {
-            score *= 0.1 // 90% reduction for muted contacts
+        // Content relevance factor: certain keywords or content types may be more important
+        if (notification.content.contains("premium") || 
+            notification.content.contains("subscription") ||
+            notification.content.contains("verified")) {
+            score += 20.0
         }
         
-        // Check for recent interactions with this sender
-        val recentInteractions = userInteractions.filter { 
-            it.userId == notification.senderId && 
-            (currentTime - it.timestamp) < RECENT_INTERACTION_THRESHOLD 
+        // Context-aware factor: prioritize differently based on user's subscription status
+        if (currentUser.subscriptionTier != null && notification.type == NotificationType.MATCH) {
+            score += 10.0 // Premium users might care more about matches
         }
         
-        if (recentInteractions.isNotEmpty()) {
-            // Boost score if user has recently interacted with this sender
-            score *= 1.3
-        }
-        
-        // Time-based adjustments
-        val recencyBoost = calculateRecencyBoost(notification.timestamp, currentTime)
-        score *= recencyBoost
-        
-        // Apply time-of-day weighting (messages at 3 AM get lower priority unless user is active)
-        val isActiveNow = userInteractions.any { 
-            (currentTime - it.timestamp) < ACTIVE_USER_THRESHOLD 
-        }
-        
-        if (!isActiveNow) {
-            val timeOfDayFactor = calculateTimeOfDayFactor(currentTime)
-            score *= timeOfDayFactor
-        }
-        
-        Timber.d("Notification score for ${notification.id}: $score")
         return score
     }
     
     /**
-     * Calculate a boost factor based on how recent the notification is
+     * Calculate an interaction score based on how frequently the user interacts with another user
      * 
-     * @param notificationTime Timestamp of the notification
-     * @param currentTime Current device time
-     * @return Recency factor (1.0 for brand new, decreasing with age)
+     * @param currentUser The current user
+     * @param otherUserId ID of the other user
+     * @return Interaction score
      */
-    private fun calculateRecencyBoost(notificationTime: Long, currentTime: Long): Double {
-        val ageInMinutes = (currentTime - notificationTime) / (1000 * 60)
-        
-        // Exponential decay: notifications lose priority as they age
-        return when {
-            ageInMinutes < 5 -> 1.0
-            ageInMinutes < 30 -> 0.9
-            ageInMinutes < 60 -> 0.8
-            ageInMinutes < 180 -> 0.7
-            ageInMinutes < 360 -> 0.6
-            ageInMinutes < 720 -> 0.5
-            else -> 0.4
-        }
+    private fun calculateInteractionScore(currentUser: User, otherUserId: String): Double {
+        // In a real implementation, we would look at factors like:
+        // - How many messages they've exchanged
+        // - How recently they've interacted
+        // - Whether they're matched
+        // - Call history
+        // For now, return a placeholder value
+        return 25.0
     }
     
     /**
-     * Calculate a time-of-day factor to reduce notification priority during sleeping hours
+     * Determine if a notification should be shown immediately as a high-priority notification
      * 
-     * @param currentTime Current device time
-     * @return Time of day factor (lower during typical sleeping hours)
+     * @param notification The notification to check
+     * @param currentUser The current user
+     * @return True if the notification is high priority
      */
-    private fun calculateTimeOfDayFactor(currentTime: Long): Double {
-        // Extract hour of day (0-23)
-        val hour = java.time.Instant.ofEpochMilli(currentTime)
-            .atZone(java.time.ZoneId.systemDefault())
-            .hour
-            
-        // Apply reduced priority during typical sleeping hours
-        return when {
-            hour in 0..5 -> 0.5  // Late night/early morning
-            hour in 6..7 -> 0.7  // Early morning
-            hour in 8..22 -> 1.0 // Normal waking hours
-            hour in 23..24 -> 0.7 // Late evening
-            else -> 1.0
+    fun isHighPriorityNotification(notification: Notification, currentUser: User): Boolean {
+        // Messages from matched users are high priority
+        if (notification.type == NotificationType.MESSAGE && 
+            currentUser.matchedUserIds.contains(notification.relatedUserId)) {
+            return true
         }
-    }
-    
-    companion object {
-        // Time thresholds in milliseconds
-        private const val RECENT_INTERACTION_THRESHOLD = 3 * 60 * 60 * 1000L // 3 hours
-        private const val ACTIVE_USER_THRESHOLD = 10 * 60 * 1000L // 10 minutes
+        
+        // Missed calls are high priority
+        if (notification.type == NotificationType.CALL_MISSED) {
+            return true
+        }
+        
+        // Payment failures are high priority
+        if (notification.type == NotificationType.PAYMENT_FAILED) {
+            return true
+        }
+        
+        // New matches are high priority for non-premium users (who get fewer matches)
+        if (notification.type == NotificationType.MATCH && currentUser.subscriptionTier == null) {
+            return true
+        }
+        
+        return false
     }
 }
