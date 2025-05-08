@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
 import com.kilagee.onelove.data.model.Match
 import com.kilagee.onelove.data.model.Message
 import com.kilagee.onelove.data.model.User
+import com.kilagee.onelove.data.model.UserSubscription
 
 /**
  * Room database for the app
@@ -16,7 +17,8 @@ import com.kilagee.onelove.data.model.User
     entities = [
         User::class,
         Message::class,
-        Match::class
+        Match::class,
+        UserSubscription::class
         // Add other entities here
     ],
     version = 1,
@@ -39,6 +41,11 @@ abstract class OneLoveDatabase : RoomDatabase() {
      * Get match DAO
      */
     abstract fun matchDao(): MatchDao
+    
+    /**
+     * Get subscription DAO
+     */
+    abstract fun subscriptionDao(): SubscriptionDao
     
     companion object {
         @Volatile

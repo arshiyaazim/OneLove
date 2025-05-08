@@ -1,134 +1,114 @@
 package com.kilagee.onelove.ui.screens.subscription
 
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kilagee.onelove.data.model.Offer
+import com.kilagee.onelove.data.model.BillingPeriod
 import com.kilagee.onelove.data.model.PaymentMethod
-import com.kilagee.onelove.data.model.PaymentType
-import com.kilagee.onelove.data.model.Subscription
 import com.kilagee.onelove.data.model.SubscriptionPlan
+import com.kilagee.onelove.data.model.SubscriptionPurchaseResult
+import com.kilagee.onelove.data.model.SubscriptionTier
+import com.kilagee.onelove.data.model.UserSubscription
+import com.kilagee.onelove.domain.repository.AuthRepository
 import com.kilagee.onelove.domain.repository.SubscriptionRepository
 import com.kilagee.onelove.domain.util.Result
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 /**
- * ViewModel for subscription screens
+ * ViewModel for the subscription screen
  */
 @HiltViewModel
 class SubscriptionViewModel @Inject constructor(
     private val subscriptionRepository: SubscriptionRepository,
-    savedStateHandle: SavedStateHandle
+    private val authRepository: AuthRepository
 ) : ViewModel() {
-    
-    // UI state
+
     private val _uiState = MutableStateFlow<SubscriptionUiState>(SubscriptionUiState.Loading)
     val uiState: StateFlow<SubscriptionUiState> = _uiState.asStateFlow()
     
-    // One-time events
-    private val _events = MutableSharedFlow<SubscriptionEvent>()
-    val events: SharedFlow<SubscriptionEvent> = _events.asSharedFlow()
+    private val _currentSubscription = MutableStateFlow<UserSubscription?>(null)
+    val currentSubscription: StateFlow<UserSubscription?> = _currentSubscription.asStateFlow()
     
-    // Subscription plans
     private val _subscriptionPlans = MutableStateFlow<List<SubscriptionPlan>>(emptyList())
     val subscriptionPlans: StateFlow<List<SubscriptionPlan>> = _subscriptionPlans.asStateFlow()
     
-    // Current subscription
-    private val _currentSubscription = MutableStateFlow<Subscription?>(null)
-    val currentSubscription: StateFlow<Subscription?> = _currentSubscription.asStateFlow()
-    
-    // Selected plan
     private val _selectedPlan = MutableStateFlow<SubscriptionPlan?>(null)
     val selectedPlan: StateFlow<SubscriptionPlan?> = _selectedPlan.asStateFlow()
     
-    // Selected billing interval
-    private val _selectedBillingInterval = MutableStateFlow("monthly")
-    val selectedBillingInterval: StateFlow<String> = _selectedBillingInterval.asStateFlow()
+    private val _selectedBillingPeriod = MutableStateFlow(BillingPeriod.MONTHLY)
+    val selectedBillingPeriod: StateFlow<BillingPeriod> = _selectedBillingPeriod.asStateFlow()
     
-    // Payment methods
     private val _paymentMethods = MutableStateFlow<List<PaymentMethod>>(emptyList())
     val paymentMethods: StateFlow<List<PaymentMethod>> = _paymentMethods.asStateFlow()
     
-    // Selected payment method
     private val _selectedPaymentMethod = MutableStateFlow<PaymentMethod?>(null)
     val selectedPaymentMethod: StateFlow<PaymentMethod?> = _selectedPaymentMethod.asStateFlow()
     
-    // Promo code
-    private val _promoCode = MutableStateFlow("")
-    val promoCode: StateFlow<String> = _promoCode.asStateFlow()
+    private val _isProcessing = MutableStateFlow(false)
+    val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
     
-    // Applied offer
-    private val _appliedOffer = MutableStateFlow<Offer?>(null)
-    val appliedOffer: StateFlow<Offer?> = _appliedOffer.asStateFlow()
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     
-    // Active offers
-    private val _activeOffers = MutableStateFlow<List<Offer>>(emptyList())
-    val activeOffers: StateFlow<List<Offer>> = _activeOffers.asStateFlow()
+    private val _purchaseResult = MutableStateFlow<SubscriptionPurchaseResult?>(null)
+    val purchaseResult: StateFlow<SubscriptionPurchaseResult?> = _purchaseResult.asStateFlow()
     
-    // Checkout state
-    private val _checkoutState = MutableStateFlow<CheckoutState>(CheckoutState.SelectPlan)
-    val checkoutState: StateFlow<CheckoutState> = _checkoutState.asStateFlow()
-    
-    // Payment processing state
-    private val _isProcessingPayment = MutableStateFlow(false)
-    val isProcessingPayment: StateFlow<Boolean> = _isProcessingPayment.asStateFlow()
-    
-    // Payment client secret (for Stripe)
-    private val _clientSecret = MutableStateFlow<String?>(null)
-    val clientSecret: StateFlow<String?> = _clientSecret.asStateFlow()
-    
-    // Active jobs
-    private var subscriptionJob: Job? = null
-    
+    /**
+     * Initialize the ViewModel
+     */
     init {
-        loadSubscriptionPlans()
-        loadCurrentSubscription()
-        loadPaymentMethods()
-        loadActiveOffers()
+        loadSubscriptionData()
     }
     
     /**
-     * Load subscription plans
+     * Load subscription data
      */
-    private fun loadSubscriptionPlans() {
+    fun loadSubscriptionData() {
         viewModelScope.launch {
             _uiState.value = SubscriptionUiState.Loading
             
-            val result = subscriptionRepository.getSubscriptionPlans()
-            
-            when (result) {
-                is Result.Success -> {
-                    _subscriptionPlans.value = result.data
-                    
-                    // Auto-select the most popular plan if available
-                    result.data.find { it.isPopular }?.let {
-                        _selectedPlan.value = it
-                    } ?: run {
-                        // Or select the first plan if none are marked as popular
-                        if (result.data.isNotEmpty()) {
-                            _selectedPlan.value = result.data[0]
+            try {
+                val userId = authRepository.getCurrentUserId()
+                if (userId == null) {
+                    _uiState.value = SubscriptionUiState.Error("User not authenticated")
+                    return@launch
+                }
+                
+                // Load subscription plans
+                subscriptionRepository.getSubscriptionPlans().collectLatest { result ->
+                    when (result) {
+                        is Result.Success -> {
+                            _subscriptionPlans.value = result.data.sortedBy { it.displayOrder }
+                            
+                            // Select the first plan if none is selected
+                            if (_selectedPlan.value == null && result.data.isNotEmpty()) {
+                                _selectedPlan.value = result.data.first()
+                            }
+                            
+                            loadCurrentSubscription(userId)
+                        }
+                        is Result.Error -> {
+                            _errorMessage.value = result.message
+                        }
+                        is Result.Loading -> {
+                            // Already handled
                         }
                     }
-                    
-                    _uiState.value = SubscriptionUiState.Success
                 }
-                is Result.Error -> {
-                    _events.emit(SubscriptionEvent.Error(result.message ?: "Failed to load subscription plans"))
-                    _uiState.value = SubscriptionUiState.Error(result.message ?: "Failed to load subscription plans")
-                }
-                is Result.Loading -> {
-                    // Keep loading state
-                }
+                
+                // Load payment methods
+                loadPaymentMethods(userId)
+                
+            } catch (e: Exception) {
+                Timber.e(e, "Error loading subscription data")
+                _uiState.value = SubscriptionUiState.Error("Failed to load subscription data: ${e.message}")
+                _errorMessage.value = "Failed to load subscription data: ${e.message}"
             }
         }
     }
@@ -136,23 +116,19 @@ class SubscriptionViewModel @Inject constructor(
     /**
      * Load current subscription
      */
-    private fun loadCurrentSubscription() {
-        // Cancel any existing job
-        subscriptionJob?.cancel()
-        
-        // Start new job
-        subscriptionJob = viewModelScope.launch {
-            subscriptionRepository.getCurrentSubscriptionFlow().collectLatest { result ->
-                when (result) {
-                    is Result.Success -> {
-                        _currentSubscription.value = result.data
-                    }
-                    is Result.Error -> {
-                        _events.emit(SubscriptionEvent.Error(result.message ?: "Failed to load current subscription"))
-                    }
-                    is Result.Loading -> {
-                        // Do nothing for loading state
-                    }
+    private suspend fun loadCurrentSubscription(userId: String) {
+        subscriptionRepository.getUserSubscription(userId).collectLatest { result ->
+            when (result) {
+                is Result.Success -> {
+                    _currentSubscription.value = result.data
+                    _uiState.value = SubscriptionUiState.Success
+                }
+                is Result.Error -> {
+                    _errorMessage.value = result.message
+                    _uiState.value = SubscriptionUiState.Success // Still show UI even if subscription fetch fails
+                }
+                is Result.Loading -> {
+                    // Already handled
                 }
             }
         }
@@ -161,30 +137,28 @@ class SubscriptionViewModel @Inject constructor(
     /**
      * Load payment methods
      */
-    private fun loadPaymentMethods() {
+    private fun loadPaymentMethods(userId: String) {
         viewModelScope.launch {
-            val result = subscriptionRepository.getPaymentMethods()
-            
-            if (result is Result.Success) {
-                _paymentMethods.value = result.data
-                
-                // Auto-select the default payment method
-                result.data.find { it.isDefault }?.let {
-                    _selectedPaymentMethod.value = it
+            subscriptionRepository.getUserPaymentMethods(userId).collectLatest { result ->
+                when (result) {
+                    is Result.Success -> {
+                        _paymentMethods.value = result.data
+                        
+                        // Select default payment method if available
+                        val defaultMethod = result.data.find { it.isDefault }
+                        if (defaultMethod != null) {
+                            _selectedPaymentMethod.value = defaultMethod
+                        } else if (result.data.isNotEmpty()) {
+                            _selectedPaymentMethod.value = result.data.first()
+                        }
+                    }
+                    is Result.Error -> {
+                        _errorMessage.value = result.message
+                    }
+                    is Result.Loading -> {
+                        // Already handled
+                    }
                 }
-            }
-        }
-    }
-    
-    /**
-     * Load active offers
-     */
-    private fun loadActiveOffers() {
-        viewModelScope.launch {
-            val result = subscriptionRepository.getActiveOffers()
-            
-            if (result is Result.Success) {
-                _activeOffers.value = result.data
             }
         }
     }
@@ -194,334 +168,371 @@ class SubscriptionViewModel @Inject constructor(
      */
     fun selectPlan(plan: SubscriptionPlan) {
         _selectedPlan.value = plan
-        
-        // Clear applied offer when plan changes
-        if (_appliedOffer.value != null && _appliedOffer.value?.planId != plan.id) {
-            _appliedOffer.value = null
-            _promoCode.value = ""
-        }
     }
     
     /**
-     * Select a billing interval
+     * Switch billing period
      */
-    fun selectBillingInterval(interval: String) {
-        _selectedBillingInterval.value = interval
+    fun switchBillingPeriod(period: BillingPeriod) {
+        _selectedBillingPeriod.value = period
     }
     
     /**
-     * Select a payment method
+     * Select payment method
      */
-    fun selectPaymentMethod(paymentMethod: PaymentMethod) {
-        _selectedPaymentMethod.value = paymentMethod
+    fun selectPaymentMethod(method: PaymentMethod) {
+        _selectedPaymentMethod.value = method
     }
     
     /**
-     * Update promo code
+     * Subscribe to the selected plan
      */
-    fun updatePromoCode(code: String) {
-        _promoCode.value = code
-        // Clear applied offer when promo code changes
-        _appliedOffer.value = null
-    }
-    
-    /**
-     * Apply promo code
-     */
-    fun applyPromoCode() {
-        val code = _promoCode.value.trim()
-        if (code.isEmpty()) return
-        
+    fun subscribe() {
         viewModelScope.launch {
-            _uiState.value = SubscriptionUiState.Loading
+            _isProcessing.value = true
+            _purchaseResult.value = null
             
-            val result = subscriptionRepository.applyPromoCode(
-                promoCode = code,
-                planId = _selectedPlan.value?.id
-            )
-            
-            when (result) {
-                is Result.Success -> {
-                    _appliedOffer.value = result.data
-                    _events.emit(SubscriptionEvent.PromoCodeApplied(result.data))
-                    _uiState.value = SubscriptionUiState.Success
-                }
-                is Result.Error -> {
-                    _events.emit(SubscriptionEvent.Error(result.message ?: "Invalid promo code"))
-                    _appliedOffer.value = null
-                    _uiState.value = SubscriptionUiState.Success
-                }
-                is Result.Loading -> {
-                    // Keep loading state
-                }
-            }
-        }
-    }
-    
-    /**
-     * Clear applied promo code
-     */
-    fun clearPromoCode() {
-        _promoCode.value = ""
-        _appliedOffer.value = null
-    }
-    
-    /**
-     * Go to next checkout step
-     */
-    fun nextCheckoutStep() {
-        _checkoutState.value = when (_checkoutState.value) {
-            is CheckoutState.SelectPlan -> CheckoutState.SelectPayment
-            is CheckoutState.SelectPayment -> CheckoutState.ReviewOrder
-            else -> _checkoutState.value
-        }
-    }
-    
-    /**
-     * Go to previous checkout step
-     */
-    fun previousCheckoutStep() {
-        _checkoutState.value = when (_checkoutState.value) {
-            is CheckoutState.SelectPayment -> CheckoutState.SelectPlan
-            is CheckoutState.ReviewOrder -> CheckoutState.SelectPayment
-            else -> _checkoutState.value
-        }
-    }
-    
-    /**
-     * Add a new payment method
-     */
-    fun addPaymentMethod(paymentToken: String, type: PaymentType) {
-        viewModelScope.launch {
-            _uiState.value = SubscriptionUiState.Loading
-            
-            val result = subscriptionRepository.addPaymentMethod(
-                paymentToken = paymentToken,
-                type = type,
-                isDefault = _paymentMethods.value.isEmpty() // Set as default if it's the first payment method
-            )
-            
-            when (result) {
-                is Result.Success -> {
-                    _paymentMethods.value = _paymentMethods.value + result.data
-                    _selectedPaymentMethod.value = result.data
-                    _events.emit(SubscriptionEvent.PaymentMethodAdded)
-                    _uiState.value = SubscriptionUiState.Success
-                }
-                is Result.Error -> {
-                    _events.emit(SubscriptionEvent.Error(result.message ?: "Failed to add payment method"))
-                    _uiState.value = SubscriptionUiState.Success
-                }
-                is Result.Loading -> {
-                    // Keep loading state
-                }
-            }
-        }
-    }
-    
-    /**
-     * Process subscription purchase
-     */
-    fun purchase() {
-        val selectedPlan = _selectedPlan.value ?: return
-        val selectedPaymentMethod = _selectedPaymentMethod.value ?: return
-        val billingInterval = _selectedBillingInterval.value
-        val promoCode = if (_appliedOffer.value != null) _promoCode.value.trim() else null
-        
-        viewModelScope.launch {
-            _isProcessingPayment.value = true
-            
-            // For plans requiring immediate payment, create a payment intent
-            if (selectedPlan.tier != com.kilagee.onelove.data.model.PlanTier.FREE) {
-                // Calculate amount based on plan and billing interval
-                val amount = if (billingInterval == "yearly") {
-                    selectedPlan.pricePerYear
-                } else {
-                    selectedPlan.pricePerMonth
-                }
-                
-                // Apply discount if there's a valid promo code
-                val finalAmount = if (_appliedOffer.value != null) {
-                    amount * (1 - _appliedOffer.value!!.discountPercentage / 100.0)
-                } else {
-                    amount
-                }
-                
-                // Create payment intent
-                val paymentIntentResult = subscriptionRepository.createPaymentIntent(
-                    amount = finalAmount,
-                    description = "Subscription to ${selectedPlan.name} (${billingInterval})"
-                )
-                
-                if (paymentIntentResult is Result.Error) {
-                    _events.emit(SubscriptionEvent.Error(paymentIntentResult.message ?: "Failed to create payment"))
-                    _isProcessingPayment.value = false
+            try {
+                val userId = authRepository.getCurrentUserId()
+                if (userId == null) {
+                    _errorMessage.value = "User not authenticated"
+                    _isProcessing.value = false
                     return@launch
                 }
                 
-                // Store client secret for Stripe SDK
-                if (paymentIntentResult is Result.Success) {
-                    _clientSecret.value = paymentIntentResult.data
+                val plan = _selectedPlan.value
+                if (plan == null) {
+                    _errorMessage.value = "No plan selected"
+                    _isProcessing.value = false
+                    return@launch
                 }
                 
-                // Confirm payment (in a real app, this would be handled by the Stripe SDK)
-                // For now, we'll assume the payment was successful and proceed
-            }
-            
-            // Create subscription
-            val subscribeResult = subscriptionRepository.subscribe(
-                planId = selectedPlan.id,
-                paymentMethodId = selectedPaymentMethod.id,
-                billingInterval = billingInterval,
-                promoCode = promoCode
-            )
-            
-            _isProcessingPayment.value = false
-            
-            when (subscribeResult) {
-                is Result.Success -> {
-                    _currentSubscription.value = subscribeResult.data
-                    _events.emit(SubscriptionEvent.SubscriptionPurchased(subscribeResult.data))
-                    _checkoutState.value = CheckoutState.Complete
+                val billingPeriod = _selectedBillingPeriod.value
+                val paymentMethodId = _selectedPaymentMethod.value?.id
+                
+                val result = subscriptionRepository.subscribeToPlan(
+                    userId = userId,
+                    planId = plan.id,
+                    paymentMethodId = paymentMethodId,
+                    billingPeriod = billingPeriod
+                )
+                
+                when (result) {
+                    is Result.Success -> {
+                        _purchaseResult.value = result.data
+                        
+                        if (result.data.requiresAction) {
+                            _uiState.value = SubscriptionUiState.ActionRequired(result.data.actionUrl ?: "")
+                        } else if (result.data.success) {
+                            _uiState.value = SubscriptionUiState.Success
+                            loadSubscriptionData() // Refresh data
+                        } else {
+                            _errorMessage.value = result.data.error ?: "Unknown error"
+                        }
+                    }
+                    is Result.Error -> {
+                        _errorMessage.value = result.message
+                    }
+                    is Result.Loading -> {
+                        // Already handled
+                    }
                 }
-                is Result.Error -> {
-                    _events.emit(SubscriptionEvent.Error(subscribeResult.message ?: "Failed to create subscription"))
-                }
-                is Result.Loading -> {
-                    // Do nothing for loading state
-                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error subscribing to plan")
+                _errorMessage.value = "Failed to subscribe: ${e.message}"
+            } finally {
+                _isProcessing.value = false
             }
         }
     }
     
     /**
-     * Cancel current subscription
+     * Cancel subscription
      */
-    fun cancelSubscription(reason: String? = null, cancelImmediately: Boolean = false) {
-        val subscription = _currentSubscription.value ?: return
-        
+    fun cancelSubscription() {
         viewModelScope.launch {
-            _uiState.value = SubscriptionUiState.Loading
+            _isProcessing.value = true
             
-            val result = subscriptionRepository.cancelSubscription(
-                subscriptionId = subscription.id,
-                reason = reason,
-                cancelImmediately = cancelImmediately
-            )
-            
-            when (result) {
-                is Result.Success -> {
-                    // The flow will update the current subscription
-                    _events.emit(SubscriptionEvent.SubscriptionCanceled)
-                    _uiState.value = SubscriptionUiState.Success
+            try {
+                val userId = authRepository.getCurrentUserId()
+                if (userId == null) {
+                    _errorMessage.value = "User not authenticated"
+                    _isProcessing.value = false
+                    return@launch
                 }
-                is Result.Error -> {
-                    _events.emit(SubscriptionEvent.Error(result.message ?: "Failed to cancel subscription"))
-                    _uiState.value = SubscriptionUiState.Success
+                
+                val result = subscriptionRepository.cancelSubscription(userId)
+                
+                when (result) {
+                    is Result.Success -> {
+                        loadSubscriptionData() // Refresh data
+                    }
+                    is Result.Error -> {
+                        _errorMessage.value = result.message
+                    }
+                    is Result.Loading -> {
+                        // Already handled
+                    }
                 }
-                is Result.Loading -> {
-                    // Keep loading state
-                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error canceling subscription")
+                _errorMessage.value = "Failed to cancel subscription: ${e.message}"
+            } finally {
+                _isProcessing.value = false
             }
         }
     }
     
     /**
-     * Update auto-renewal setting
+     * Update auto-renew setting
      */
-    fun updateAutoRenewal(autoRenew: Boolean) {
-        val subscription = _currentSubscription.value ?: return
-        
+    fun updateAutoRenew(autoRenew: Boolean) {
         viewModelScope.launch {
-            val result = subscriptionRepository.updateAutoRenewal(
-                subscriptionId = subscription.id,
-                autoRenew = autoRenew
-            )
+            _isProcessing.value = true
             
-            if (result is Result.Error) {
-                _events.emit(SubscriptionEvent.Error(result.message ?: "Failed to update auto-renewal"))
-            } else if (result is Result.Success) {
-                _events.emit(SubscriptionEvent.AutoRenewalUpdated(autoRenew))
+            try {
+                val userId = authRepository.getCurrentUserId()
+                if (userId == null) {
+                    _errorMessage.value = "User not authenticated"
+                    _isProcessing.value = false
+                    return@launch
+                }
+                
+                val result = subscriptionRepository.updateAutoRenew(userId, autoRenew)
+                
+                when (result) {
+                    is Result.Success -> {
+                        loadSubscriptionData() // Refresh data
+                    }
+                    is Result.Error -> {
+                        _errorMessage.value = result.message
+                    }
+                    is Result.Loading -> {
+                        // Already handled
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error updating auto-renew")
+                _errorMessage.value = "Failed to update auto-renew: ${e.message}"
+            } finally {
+                _isProcessing.value = false
             }
         }
     }
     
     /**
-     * Change subscription plan
+     * Add payment method
      */
-    fun changePlan(newPlanId: String) {
-        val subscription = _currentSubscription.value ?: return
-        
+    fun addPaymentMethod(
+        cardNumber: String,
+        expiryMonth: Int,
+        expiryYear: Int,
+        cvc: String,
+        isDefault: Boolean
+    ) {
         viewModelScope.launch {
-            _uiState.value = SubscriptionUiState.Loading
+            _isProcessing.value = true
             
-            val result = subscriptionRepository.changePlan(
-                subscriptionId = subscription.id,
-                newPlanId = newPlanId
-            )
-            
-            when (result) {
-                is Result.Success -> {
-                    _currentSubscription.value = result.data
-                    _events.emit(SubscriptionEvent.PlanChanged(result.data))
-                    _uiState.value = SubscriptionUiState.Success
+            try {
+                val userId = authRepository.getCurrentUserId()
+                if (userId == null) {
+                    _errorMessage.value = "User not authenticated"
+                    _isProcessing.value = false
+                    return@launch
                 }
-                is Result.Error -> {
-                    _events.emit(SubscriptionEvent.Error(result.message ?: "Failed to change plan"))
-                    _uiState.value = SubscriptionUiState.Success
+                
+                val result = subscriptionRepository.addPaymentMethod(
+                    userId = userId,
+                    cardNumber = cardNumber,
+                    expiryMonth = expiryMonth,
+                    expiryYear = expiryYear,
+                    cvc = cvc,
+                    isDefault = isDefault
+                )
+                
+                when (result) {
+                    is Result.Success -> {
+                        loadPaymentMethods(userId)
+                        _selectedPaymentMethod.value = result.data
+                    }
+                    is Result.Error -> {
+                        _errorMessage.value = result.message
+                    }
+                    is Result.Loading -> {
+                        // Already handled
+                    }
                 }
-                is Result.Loading -> {
-                    // Keep loading state
-                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error adding payment method")
+                _errorMessage.value = "Failed to add payment method: ${e.message}"
+            } finally {
+                _isProcessing.value = false
             }
         }
     }
     
     /**
-     * Clear errors
+     * Remove payment method
      */
-    fun clearErrors() {
-        if (_uiState.value is SubscriptionUiState.Error) {
-            _uiState.value = SubscriptionUiState.Success
+    fun removePaymentMethod(paymentMethodId: String) {
+        viewModelScope.launch {
+            _isProcessing.value = true
+            
+            try {
+                val userId = authRepository.getCurrentUserId()
+                if (userId == null) {
+                    _errorMessage.value = "User not authenticated"
+                    _isProcessing.value = false
+                    return@launch
+                }
+                
+                val result = subscriptionRepository.removePaymentMethod(userId, paymentMethodId)
+                
+                when (result) {
+                    is Result.Success -> {
+                        // Remove from selected
+                        if (_selectedPaymentMethod.value?.id == paymentMethodId) {
+                            _selectedPaymentMethod.value = null
+                        }
+                        loadPaymentMethods(userId)
+                    }
+                    is Result.Error -> {
+                        _errorMessage.value = result.message
+                    }
+                    is Result.Loading -> {
+                        // Already handled
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error removing payment method")
+                _errorMessage.value = "Failed to remove payment method: ${e.message}"
+            } finally {
+                _isProcessing.value = false
+            }
         }
     }
     
     /**
-     * Calculate the current price based on selected plan, interval, and any discounts
+     * Set default payment method
      */
-    fun calculatePrice(): Double {
-        val plan = _selectedPlan.value ?: return 0.0
-        val basePrice = if (_selectedBillingInterval.value == "yearly") {
-            plan.pricePerYear
-        } else {
-            plan.pricePerMonth
-        }
-        
-        return if (_appliedOffer.value != null) {
-            basePrice * (1 - _appliedOffer.value!!.discountPercentage / 100.0)
-        } else {
-            basePrice
+    fun setDefaultPaymentMethod(paymentMethodId: String) {
+        viewModelScope.launch {
+            _isProcessing.value = true
+            
+            try {
+                val userId = authRepository.getCurrentUserId()
+                if (userId == null) {
+                    _errorMessage.value = "User not authenticated"
+                    _isProcessing.value = false
+                    return@launch
+                }
+                
+                val result = subscriptionRepository.setDefaultPaymentMethod(userId, paymentMethodId)
+                
+                when (result) {
+                    is Result.Success -> {
+                        loadPaymentMethods(userId)
+                    }
+                    is Result.Error -> {
+                        _errorMessage.value = result.message
+                    }
+                    is Result.Loading -> {
+                        // Already handled
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error setting default payment method")
+                _errorMessage.value = "Failed to set default payment method: ${e.message}"
+            } finally {
+                _isProcessing.value = false
+            }
         }
     }
     
     /**
-     * Calculate yearly savings percentage compared to monthly billing
+     * Complete Stripe payment action
      */
-    fun calculateYearlySavings(): Int {
-        val plan = _selectedPlan.value ?: return 0
-        val monthlyTotal = plan.pricePerMonth * 12
-        val yearlyCost = plan.pricePerYear
-        
-        return if (monthlyTotal > 0) {
-            ((monthlyTotal - yearlyCost) / monthlyTotal * 100).toInt()
-        } else {
-            0
+    fun completePaymentAction(actionUrl: String, subscriptionId: String) {
+        viewModelScope.launch {
+            _isProcessing.value = true
+            
+            try {
+                val userId = authRepository.getCurrentUserId()
+                if (userId == null) {
+                    _errorMessage.value = "User not authenticated"
+                    _isProcessing.value = false
+                    return@launch
+                }
+                
+                val result = subscriptionRepository.completeSubscription(
+                    userId = userId,
+                    subscriptionId = subscriptionId,
+                    actionSecret = actionUrl
+                )
+                
+                when (result) {
+                    is Result.Success -> {
+                        _purchaseResult.value = result.data
+                        
+                        if (result.data.success) {
+                            _uiState.value = SubscriptionUiState.Success
+                            loadSubscriptionData() // Refresh data
+                        } else if (result.data.requiresAction) {
+                            _uiState.value = SubscriptionUiState.ActionRequired(result.data.actionUrl ?: "")
+                        } else {
+                            _errorMessage.value = result.data.error ?: "Unknown error"
+                        }
+                    }
+                    is Result.Error -> {
+                        _errorMessage.value = result.message
+                    }
+                    is Result.Loading -> {
+                        // Already handled
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error completing payment action")
+                _errorMessage.value = "Failed to complete payment: ${e.message}"
+            } finally {
+                _isProcessing.value = false
+            }
         }
     }
     
-    override fun onCleared() {
-        super.onCleared()
-        subscriptionJob?.cancel()
+    /**
+     * Check if user is subscribed to a specific tier
+     */
+    fun isSubscribedToTier(tier: SubscriptionTier, callback: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val userId = authRepository.getCurrentUserId()
+                if (userId == null) {
+                    callback(false)
+                    return@launch
+                }
+                
+                val result = subscriptionRepository.isSubscribedToTier(userId, tier)
+                
+                when (result) {
+                    is Result.Success -> {
+                        callback(result.data)
+                    }
+                    else -> {
+                        callback(false)
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error checking subscription tier")
+                callback(false)
+            }
+        }
+    }
+    
+    /**
+     * Clear error message
+     */
+    fun clearErrorMessage() {
+        _errorMessage.value = null
     }
 }
 
@@ -532,27 +543,5 @@ sealed class SubscriptionUiState {
     object Loading : SubscriptionUiState()
     object Success : SubscriptionUiState()
     data class Error(val message: String) : SubscriptionUiState()
-}
-
-/**
- * Events emitted by the subscription screen
- */
-sealed class SubscriptionEvent {
-    data class PromoCodeApplied(val offer: Offer) : SubscriptionEvent()
-    object PaymentMethodAdded : SubscriptionEvent()
-    data class SubscriptionPurchased(val subscription: Subscription) : SubscriptionEvent()
-    object SubscriptionCanceled : SubscriptionEvent()
-    data class AutoRenewalUpdated(val autoRenew: Boolean) : SubscriptionEvent()
-    data class PlanChanged(val subscription: Subscription) : SubscriptionEvent()
-    data class Error(val message: String) : SubscriptionEvent()
-}
-
-/**
- * Checkout states
- */
-sealed class CheckoutState {
-    object SelectPlan : CheckoutState()
-    object SelectPayment : CheckoutState()
-    object ReviewOrder : CheckoutState()
-    object Complete : CheckoutState()
+    data class ActionRequired(val actionUrl: String) : SubscriptionUiState()
 }

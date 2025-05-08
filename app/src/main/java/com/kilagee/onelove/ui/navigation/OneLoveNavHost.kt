@@ -18,6 +18,7 @@ import com.kilagee.onelove.ui.screens.discover.ProfileDetailScreen
 import com.kilagee.onelove.ui.screens.profile.EditProfileScreen
 import com.kilagee.onelove.ui.screens.profile.MyProfileScreen
 import com.kilagee.onelove.ui.screens.settings.SettingsScreen
+import com.kilagee.onelove.ui.screens.subscription.PaymentActionScreen
 import com.kilagee.onelove.ui.screens.subscription.SubscriptionScreen
 
 /**
@@ -41,6 +42,12 @@ sealed class Screen(val route: String) {
     object EditProfile : Screen("edit_profile")
     object Settings : Screen("settings")
     object Subscription : Screen("subscription")
+    object PaymentAction : Screen("payment_action/{actionUrl}/{subscriptionId}") {
+        fun createRoute(actionUrl: String, subscriptionId: String): String {
+            val encodedUrl = java.net.URLEncoder.encode(actionUrl, "UTF-8")
+            return "payment_action/$encodedUrl/$subscriptionId"
+        }
+    }
 }
 
 /**
@@ -173,8 +180,31 @@ fun OneLoveNavHost(
         // Subscription
         composable(Screen.Subscription.route) {
             SubscriptionScreen(
-                onBackClick = { navController.popBackStack() },
-                onSubscriptionSuccess = { navController.popBackStack() },
+                navigateBack = { navController.popBackStack() },
+                navigateToPayment = { actionUrl ->
+                    val subscriptionId = "temp_id" // This would come from the purchase result
+                    actions.navigateToPaymentAction(actionUrl, subscriptionId)
+                },
+                viewModel = hiltViewModel()
+            )
+        }
+        
+        // Payment action screen
+        composable(
+            route = Screen.PaymentAction.route,
+            arguments = listOf(
+                navArgument("actionUrl") { type = NavType.StringType },
+                navArgument("subscriptionId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val actionUrl = backStackEntry.arguments?.getString("actionUrl") ?: ""
+            val subscriptionId = backStackEntry.arguments?.getString("subscriptionId") ?: ""
+            val decodedUrl = java.net.URLDecoder.decode(actionUrl, "UTF-8")
+            
+            PaymentActionScreen(
+                actionUrl = decodedUrl,
+                subscriptionId = subscriptionId,
+                onComplete = { navController.popBackStack() },
                 viewModel = hiltViewModel()
             )
         }
@@ -232,5 +262,9 @@ class NavigationActions(private val navController: NavHostController) {
     
     val navigateToSubscription: () -> Unit = {
         navController.navigate(Screen.Subscription.route)
+    }
+    
+    val navigateToPaymentAction: (String, String) -> Unit = { actionUrl, subscriptionId ->
+        navController.navigate(Screen.PaymentAction.createRoute(actionUrl, subscriptionId))
     }
 }

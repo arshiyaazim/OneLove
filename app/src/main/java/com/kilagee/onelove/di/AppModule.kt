@@ -5,21 +5,26 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.ktx.functions
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.ktx.storage
 import com.kilagee.onelove.data.local.MatchDao
 import com.kilagee.onelove.data.local.MessageDao
 import com.kilagee.onelove.data.local.OneLoveDatabase
+import com.kilagee.onelove.data.local.SubscriptionDao
 import com.kilagee.onelove.data.local.UserDao
 import com.kilagee.onelove.data.repository.AuthRepositoryImpl
 import com.kilagee.onelove.data.repository.ChatRepositoryImpl
 import com.kilagee.onelove.data.repository.DiscoverRepositoryImpl
+import com.kilagee.onelove.data.repository.SubscriptionRepositoryImpl
 import com.kilagee.onelove.data.repository.UserRepositoryImpl
 import com.kilagee.onelove.domain.recommendation.RecommendationEngine
 import com.kilagee.onelove.domain.repository.AuthRepository
 import com.kilagee.onelove.domain.repository.ChatRepository
 import com.kilagee.onelove.domain.repository.DiscoverRepository
+import com.kilagee.onelove.domain.repository.SubscriptionRepository
 import com.kilagee.onelove.domain.repository.UserRepository
 import dagger.Module
 import dagger.Provides
@@ -63,6 +68,15 @@ object AppModule {
     }
     
     /**
+     * Provide Firebase Functions
+     */
+    @Provides
+    @Singleton
+    fun provideFirebaseFunctions(): FirebaseFunctions {
+        return Firebase.functions
+    }
+    
+    /**
      * Provide Room database
      */
     @Provides
@@ -96,6 +110,15 @@ object AppModule {
     @Singleton
     fun provideMatchDao(database: OneLoveDatabase): MatchDao {
         return database.matchDao()
+    }
+    
+    /**
+     * Provide Subscription DAO
+     */
+    @Provides
+    @Singleton
+    fun provideSubscriptionDao(database: OneLoveDatabase): SubscriptionDao {
+        return database.subscriptionDao()
     }
     
     /**
@@ -157,5 +180,19 @@ object AppModule {
         matchDao: MatchDao
     ): ChatRepository {
         return ChatRepositoryImpl(firestore, messageDao, matchDao)
+    }
+    
+    /**
+     * Provide Subscription repository
+     */
+    @Provides
+    @Singleton
+    fun provideSubscriptionRepository(
+        firestore: FirebaseFirestore,
+        functions: FirebaseFunctions,
+        subscriptionDao: SubscriptionDao,
+        userDao: UserDao
+    ): SubscriptionRepository {
+        return SubscriptionRepositoryImpl(firestore, functions, subscriptionDao, userDao)
     }
 }
