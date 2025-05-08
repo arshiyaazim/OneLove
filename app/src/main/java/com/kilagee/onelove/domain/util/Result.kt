@@ -1,156 +1,118 @@
 package com.kilagee.onelove.domain.util
 
 /**
- * A generic class that holds a value or an error.
- * @param T Type of the wrapped value
+ * A sealed class that holds a successful outcome with data of type [T] or a failure with an optional error message.
+ * 
+ * Used throughout the app to handle success/failure outcomes in a consistent way.
  */
 sealed class Result<out T> {
     /**
-     * Success state with the resulting value
-     * @param data The resulting data
+     * Represents successful operations with data
      */
     data class Success<out T>(val data: T) : Result<T>()
     
     /**
-     * Error state with the exception or error message
-     * @param exception The exception that caused the error
-     * @param message Optional error message
-     * @param code Optional error code (e.g., HTTP status code)
+     * Represents failed operations with optional error message and throwable
      */
     data class Error(
-        val exception: Throwable? = null,
         val message: String? = null,
-        val code: Int? = null
+        val exception: Throwable? = null
     ) : Result<Nothing>()
     
     /**
-     * Loading state for operations that take time to complete
+     * Represents operations in progress
      */
     object Loading : Result<Nothing>()
     
     /**
-     * Execute a block if the result is successful
-     * @param block Function to execute with the success data
-     * @return The original Result for chaining
+     * Returns true if this result represents a successful outcome
      */
-    inline fun onSuccess(block: (T) -> Unit): Result<T> {
-        if (this is Success) {
-            block(data)
-        }
-        return this
+    val isSuccess: Boolean
+        get() = this is Success
+    
+    /**
+     * Returns true if this result represents a failed outcome
+     */
+    val isError: Boolean
+        get() = this is Error
+    
+    /**
+     * Returns true if this result represents a loading state
+     */
+    val isLoading: Boolean
+        get() = this is Loading
+    
+    /**
+     * Returns the encapsulated data if this instance represents [Success] or null otherwise
+     */
+    fun getOrNull(): T? = when (this) {
+        is Success -> data
+        else -> null
     }
     
     /**
-     * Execute a block if the result is an error
-     * @param block Function to execute with the error
-     * @return The original Result for chaining
+     * Returns the encapsulated data if this instance represents [Success] or calls [defaultValue] function otherwise
      */
-    inline fun onError(block: (Error) -> Unit): Result<T> {
-        if (this is Error) {
-            block(this)
-        }
-        return this
+    inline fun getOrElse(defaultValue: () -> T): T = when (this) {
+        is Success -> data
+        else -> defaultValue()
     }
     
     /**
-     * Execute a block if the result is loading
-     * @param block Function to execute
-     * @return The original Result for chaining
+     * Returns this if result is [Success] or executes [transform] function with this error result and returns the result
      */
-    inline fun onLoading(block: () -> Unit): Result<T> {
-        if (this is Loading) {
-            block()
-        }
-        return this
+    inline fun <R> fold(
+        onSuccess: (T) -> R,
+        onError: (Error) -> R,
+        onLoading: () -> R
+    ): R = when (this) {
+        is Success -> onSuccess(data)
+        is Error -> onError(this)
+        is Loading -> onLoading()
     }
     
     /**
-     * Map successful result to a new result with a different type
-     * @param transform Function to transform the success data
-     * @return New Result with transformed data or the original error/loading state
+     * Maps the success value of this result using [transform]
      */
-    inline fun <R> map(transform: (T) -> R): Result<R> {
-        return when (this) {
-            is Success -> Success(transform(data))
-            is Error -> this
-            is Loading -> Loading
-        }
+    inline fun <R> map(transform: (T) -> R): Result<R> = when (this) {
+        is Success -> Success(transform(data))
+        is Error -> this
+        is Loading -> this
     }
     
     /**
-     * Get the value or null if the result is not successful
-     * @return The wrapped value or null
+     * Maps the error value of this result using [transform]
      */
-    fun getOrNull(): T? {
-        return when (this) {
-            is Success -> data
-            else -> null
-        }
-    }
-    
-    /**
-     * Get the value or a default value if the result is not successful
-     * @param defaultValue The default value to return if the result is not successful
-     * @return The wrapped value or the default value
-     */
-    fun getOrDefault(defaultValue: T): T {
-        return when (this) {
-            is Success -> data
-            else -> defaultValue
-        }
-    }
-    
-    /**
-     * Get the value or throw the exception if the result is an error
-     * @return The wrapped value
-     * @throws Throwable The exception in the error state
-     */
-    fun getOrThrow(): T {
-        when (this) {
-            is Success -> return data
-            is Error -> throw exception ?: IllegalStateException(message ?: "Unknown error")
-            is Loading -> throw IllegalStateException("Result is still loading")
-        }
+    inline fun mapError(transform: (Error) -> Error): Result<T> = when (this) {
+        is Success -> this
+        is Error -> transform(this)
+        is Loading -> this
     }
     
     companion object {
         /**
-         * Create a success result
-         * @param data The data to wrap
-         * @return A Success Result
+         * Creates a success result with the given data
          */
         fun <T> success(data: T): Result<T> = Success(data)
         
         /**
-         * Create an error result
-         * @param exception The exception that caused the error
-         * @param message Optional error message
-         * @param code Optional error code
-         * @return An Error Result
+         * Creates an error result with the given message and exception
          */
-        fun <T> error(
-            exception: Throwable? = null,
-            message: String? = null,
-            code: Int? = null
-        ): Result<T> = Error(exception, message, code)
+        fun error(message: String? = null, exception: Throwable? = null): Result<Nothing> = 
+            Error(message, exception)
         
         /**
-         * Create a loading result
-         * @return A Loading Result
+         * Creates a loading result
          */
         fun <T> loading(): Result<T> = Loading
         
         /**
-         * Wrap a block of code in a try-catch and return a Result
-         * @param block The code to execute and wrap in a Result
-         * @return Success if the block completes without exceptions, Error otherwise
+         * Wraps a block of code that may throw an exception into a Result
          */
-        inline fun <T> runCatching(block: () -> T): Result<T> {
-            return try {
-                Success(block())
-            } catch (e: Throwable) {
-                Error(e, e.message)
-            }
+        inline fun <T> runCatching(block: () -> T): Result<T> = try {
+            Success(block())
+        } catch (e: Exception) {
+            Error(e.message, e)
         }
     }
 }

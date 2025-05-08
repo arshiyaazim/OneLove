@@ -1,7 +1,5 @@
 package com.kilagee.onelove.ui.navigation
 
-import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -9,91 +7,80 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.kilagee.onelove.ui.screens.admin.AdminPanelScreen
+import com.kilagee.onelove.ui.screens.aichat.AiChatScreen
 import com.kilagee.onelove.ui.screens.auth.ForgotPasswordScreen
 import com.kilagee.onelove.ui.screens.auth.LoginScreen
-import com.kilagee.onelove.ui.screens.auth.PhoneVerificationScreen
 import com.kilagee.onelove.ui.screens.auth.RegisterScreen
-import com.kilagee.onelove.ui.screens.call.CallScreen
+import com.kilagee.onelove.ui.screens.auth.SplashScreen
+import com.kilagee.onelove.ui.screens.call.AudioCallScreen
+import com.kilagee.onelove.ui.screens.call.VideoCallScreen
 import com.kilagee.onelove.ui.screens.chat.ChatDetailScreen
-import com.kilagee.onelove.ui.screens.discovery.HomeScreen
-import com.kilagee.onelove.ui.screens.match.MatchDetailScreen
-import com.kilagee.onelove.ui.screens.match.MatchesScreen
-import com.kilagee.onelove.ui.screens.messages.MessagesScreen
-import com.kilagee.onelove.ui.screens.offer.CreateOfferScreen
-import com.kilagee.onelove.ui.screens.offer.OfferDetailScreen
-import com.kilagee.onelove.ui.screens.payment.PointsScreen
+import com.kilagee.onelove.ui.screens.chat.ChatScreen
+import com.kilagee.onelove.ui.screens.discover.DiscoverScreen
+import com.kilagee.onelove.ui.screens.matches.MatchesScreen
+import com.kilagee.onelove.ui.screens.notifications.NotificationsScreen
+import com.kilagee.onelove.ui.screens.payment.PaymentScreen
 import com.kilagee.onelove.ui.screens.payment.SubscriptionScreen
-import com.kilagee.onelove.ui.screens.payment.WalletScreen
-import com.kilagee.onelove.ui.screens.profile.AIProfilesScreen
 import com.kilagee.onelove.ui.screens.profile.EditProfileScreen
 import com.kilagee.onelove.ui.screens.profile.ProfileScreen
-import com.kilagee.onelove.ui.screens.profile.SettingsScreen
-import com.kilagee.onelove.ui.screens.profile.UserDetailScreen
 import com.kilagee.onelove.ui.screens.profile.VerificationScreen
-import com.kilagee.onelove.ui.screens.profile.ai.AIChatScreen
+import com.kilagee.onelove.ui.screens.profile.ViewProfileScreen
+import com.kilagee.onelove.ui.screens.settings.SettingsScreen
 
 /**
- * Navigation host composable that sets up the navigation graph for the app
+ * Main Navigation Host for the OneLove app
+ * 
+ * Handles all navigation between screens and maintains the navigation stack.
+ * Screens are organized by feature and follow a consistent navigation pattern.
  */
 @Composable
 fun OneLoveNavHost(
     navController: NavHostController,
-    startDestination: String,
     modifier: Modifier = Modifier,
-    onNavigateToBottomNavDestination: (NavDestinations) -> Unit = {}
+    startDestination: String = OneLoveDestinations.SPLASH_ROUTE
 ) {
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier,
-        enterTransition = {
-            slideIntoContainer(
-                towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                animationSpec = tween(300)
-            )
-        },
-        exitTransition = {
-            slideOutOfContainer(
-                towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                animationSpec = tween(300)
-            )
-        },
-        popEnterTransition = {
-            slideIntoContainer(
-                towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                animationSpec = tween(300)
-            )
-        },
-        popExitTransition = {
-            slideOutOfContainer(
-                towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                animationSpec = tween(300)
-            )
-        }
+        modifier = modifier
     ) {
-        // Authentication Flow
-        composable(NavDestinations.Login.route) {
-            LoginScreen(
-                onLoginSuccess = {
-                    navController.navigate(NavDestinations.Home.route) {
-                        popUpTo(NavDestinations.Login.route) { inclusive = true }
+        // Authentication flow
+        composable(route = OneLoveDestinations.SPLASH_ROUTE) {
+            SplashScreen(
+                onNavigateToLogin = {
+                    navController.navigate(OneLoveDestinations.LOGIN_ROUTE) {
+                        popUpTo(OneLoveDestinations.SPLASH_ROUTE) { inclusive = true }
                     }
                 },
-                onNavigateToRegister = {
-                    navController.navigate(NavDestinations.Register.route)
-                },
-                onNavigateToForgotPassword = {
-                    navController.navigate(NavDestinations.ForgotPassword.route)
+                onNavigateToMain = {
+                    navController.navigate(OneLoveDestinations.DISCOVER_ROUTE) {
+                        popUpTo(OneLoveDestinations.SPLASH_ROUTE) { inclusive = true }
+                    }
                 }
             )
         }
         
-        composable(NavDestinations.Register.route) {
+        composable(route = OneLoveDestinations.LOGIN_ROUTE) {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate(OneLoveDestinations.DISCOVER_ROUTE) {
+                        popUpTo(OneLoveDestinations.LOGIN_ROUTE) { inclusive = true }
+                    }
+                },
+                onNavigateToRegister = {
+                    navController.navigate(OneLoveDestinations.REGISTER_ROUTE)
+                },
+                onNavigateToForgotPassword = {
+                    navController.navigate(OneLoveDestinations.FORGOT_PASSWORD_ROUTE)
+                }
+            )
+        }
+        
+        composable(route = OneLoveDestinations.REGISTER_ROUTE) {
             RegisterScreen(
                 onRegisterSuccess = {
-                    navController.navigate(NavDestinations.Home.route) {
-                        popUpTo(NavDestinations.Login.route) { inclusive = true }
+                    navController.navigate(OneLoveDestinations.DISCOVER_ROUTE) {
+                        popUpTo(OneLoveDestinations.REGISTER_ROUTE) { inclusive = true }
                     }
                 },
                 onNavigateToLogin = {
@@ -102,23 +89,10 @@ fun OneLoveNavHost(
             )
         }
         
-        composable(NavDestinations.ForgotPassword.route) {
+        composable(route = OneLoveDestinations.FORGOT_PASSWORD_ROUTE) {
             ForgotPasswordScreen(
-                onNavigateBack = {
+                onResetSent = {
                     navController.popBackStack()
-                },
-                onPasswordResetSent = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
-        composable(NavDestinations.PhoneVerification.route) {
-            PhoneVerificationScreen(
-                onVerificationSuccess = {
-                    navController.navigate(NavDestinations.Home.route) {
-                        popUpTo(NavDestinations.Login.route) { inclusive = true }
-                    }
                 },
                 onNavigateBack = {
                     navController.popBackStack()
@@ -126,250 +100,120 @@ fun OneLoveNavHost(
             )
         }
         
-        // Main Navigation
-        composable(NavDestinations.Home.route) {
-            HomeScreen(
-                onNavigateToUserDetail = { userId ->
-                    navController.navigate(NavDestinations.UserDetail.createRoute(userId))
-                },
-                onNavigateToMatch = { matchId ->
-                    navController.navigate(NavDestinations.MatchDetail.createRoute(matchId))
+        // Main screens
+        composable(route = OneLoveDestinations.DISCOVER_ROUTE) {
+            DiscoverScreen(
+                onNavigateToViewProfile = { userId ->
+                    navController.navigate(ViewProfileDestination.createRoute(userId))
                 }
             )
         }
         
-        composable(NavDestinations.Matches.route) {
+        composable(route = OneLoveDestinations.MATCHES_ROUTE) {
             MatchesScreen(
-                onNavigateToChat = { matchId ->
-                    navController.navigate(NavDestinations.ChatDetail.createRoute(matchId))
+                onNavigateToChat = { chatId ->
+                    navController.navigate(ChatDetailDestination.createRoute(chatId))
                 },
-                onNavigateToUserDetail = { userId ->
-                    navController.navigate(NavDestinations.UserDetail.createRoute(userId))
+                onNavigateToViewProfile = { userId ->
+                    navController.navigate(ViewProfileDestination.createRoute(userId))
                 }
             )
         }
         
-        composable(NavDestinations.Messages.route) {
-            MessagesScreen(
-                onNavigateToChat = { matchId ->
-                    navController.navigate(NavDestinations.ChatDetail.createRoute(matchId))
+        composable(route = OneLoveDestinations.CHAT_ROUTE) {
+            ChatScreen(
+                onNavigateToChat = { chatId ->
+                    navController.navigate(ChatDetailDestination.createRoute(chatId))
                 }
             )
         }
         
-        composable(NavDestinations.Profile.route) {
+        composable(
+            route = OneLoveDestinations.CHAT_DETAIL_ROUTE,
+            arguments = listOf(
+                navArgument(OneLoveDestinations.CHAT_ID) {
+                    type = NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val chatId = backStackEntry.arguments?.getString(OneLoveDestinations.CHAT_ID) ?: ""
+            ChatDetailScreen(
+                chatId = chatId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToViewProfile = { userId ->
+                    navController.navigate(ViewProfileDestination.createRoute(userId))
+                },
+                onNavigateToVideoCall = { userId ->
+                    navController.navigate(VideoCallDestination.createRoute(userId))
+                },
+                onNavigateToAudioCall = { userId ->
+                    navController.navigate(AudioCallDestination.createRoute(userId))
+                }
+            )
+        }
+        
+        composable(route = OneLoveDestinations.PROFILE_ROUTE) {
             ProfileScreen(
                 onNavigateToEditProfile = {
-                    navController.navigate(NavDestinations.EditProfile.route)
+                    navController.navigate(OneLoveDestinations.EDIT_PROFILE_ROUTE)
                 },
                 onNavigateToSettings = {
-                    navController.navigate(NavDestinations.Settings.route)
-                },
-                onNavigateToSubscription = {
-                    navController.navigate(NavDestinations.Subscription.route)
-                },
-                onNavigateToWallet = {
-                    navController.navigate(NavDestinations.Wallet.route)
-                },
-                onNavigateToPoints = {
-                    navController.navigate(NavDestinations.Points.route)
+                    navController.navigate(OneLoveDestinations.SETTINGS_ROUTE)
                 },
                 onNavigateToVerification = {
-                    navController.navigate(NavDestinations.Verification.route)
+                    navController.navigate(OneLoveDestinations.VERIFICATION_ROUTE)
                 },
-                onNavigateToAIProfiles = {
-                    navController.navigate(NavDestinations.AIProfiles.route)
+                onNavigateToAiChat = {
+                    navController.navigate(OneLoveDestinations.AI_CHAT_ROUTE)
                 },
-                onNavigateToAdminPanel = {
-                    navController.navigate(NavDestinations.AdminPanel.route)
+                onNavigateToSubscription = {
+                    navController.navigate(OneLoveDestinations.SUBSCRIPTION_ROUTE)
                 }
             )
         }
         
-        // Detail Screens
-        composable(
-            route = NavDestinations.ChatDetail.route,
-            arguments = listOf(
-                navArgument("matchId") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
-            ChatDetailScreen(
-                matchId = matchId,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToUserDetail = { userId ->
-                    navController.navigate(NavDestinations.UserDetail.createRoute(userId))
-                },
-                onNavigateToCall = { callId ->
-                    navController.navigate(NavDestinations.Call.createRoute(callId))
-                },
-                onNavigateToCreateOffer = {
-                    navController.navigate(NavDestinations.CreateOffer.createRoute(matchId))
-                },
-                onNavigateToOfferDetail = { offerId ->
-                    navController.navigate(NavDestinations.OfferDetail.createRoute(offerId))
-                }
-            )
-        }
-        
-        composable(
-            route = NavDestinations.UserDetail.route,
-            arguments = listOf(
-                navArgument("userId") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val userId = backStackEntry.arguments?.getString("userId") ?: ""
-            UserDetailScreen(
-                userId = userId,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToChat = { matchId ->
-                    navController.navigate(NavDestinations.ChatDetail.createRoute(matchId))
-                }
-            )
-        }
-        
-        composable(NavDestinations.EditProfile.route) {
+        composable(route = OneLoveDestinations.EDIT_PROFILE_ROUTE) {
             EditProfileScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
-                onSaveComplete = {
+                onProfileUpdated = {
                     navController.popBackStack()
                 }
             )
         }
         
-        composable(NavDestinations.Settings.route) {
+        composable(route = OneLoveDestinations.NOTIFICATIONS_ROUTE) {
+            NotificationsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToChat = { chatId ->
+                    navController.navigate(ChatDetailDestination.createRoute(chatId))
+                },
+                onNavigateToViewProfile = { userId ->
+                    navController.navigate(ViewProfileDestination.createRoute(userId))
+                }
+            )
+        }
+        
+        composable(route = OneLoveDestinations.SETTINGS_ROUTE) {
             SettingsScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
-                onLogout = {
-                    navController.navigate(NavDestinations.Login.route) {
+                onSignOut = {
+                    navController.navigate(OneLoveDestinations.LOGIN_ROUTE) {
                         popUpTo(0) { inclusive = true }
                     }
                 }
             )
         }
         
-        composable(
-            route = NavDestinations.MatchDetail.route,
-            arguments = listOf(
-                navArgument("matchId") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
-            MatchDetailScreen(
-                matchId = matchId,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToChat = {
-                    navController.navigate(NavDestinations.ChatDetail.createRoute(matchId))
-                },
-                onNavigateToUserDetail = { userId ->
-                    navController.navigate(NavDestinations.UserDetail.createRoute(userId))
-                }
-            )
-        }
-        
-        // Features
-        composable(NavDestinations.AIProfiles.route) {
-            AIProfilesScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToAIChat = { profileId ->
-                    navController.navigate(NavDestinations.AIChat.createRoute(profileId))
-                }
-            )
-        }
-        
-        composable(
-            route = NavDestinations.AIChat.route,
-            arguments = listOf(
-                navArgument("profileId") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val profileId = backStackEntry.arguments?.getString("profileId") ?: ""
-            AIChatScreen(
-                profileId = profileId,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
-        composable(NavDestinations.Subscription.route) {
-            SubscriptionScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onSubscriptionComplete = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
-        composable(NavDestinations.Wallet.route) {
-            WalletScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
-        composable(NavDestinations.Points.route) {
-            PointsScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onPurchaseComplete = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
-        composable(
-            route = NavDestinations.CreateOffer.route,
-            arguments = listOf(
-                navArgument("matchId") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val matchId = backStackEntry.arguments?.getString("matchId") ?: ""
-            CreateOfferScreen(
-                matchId = matchId,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onOfferCreated = { offerId ->
-                    navController.navigate(NavDestinations.OfferDetail.createRoute(offerId)) {
-                        popUpTo(NavDestinations.ChatDetail.route)
-                    }
-                }
-            )
-        }
-        
-        composable(
-            route = NavDestinations.OfferDetail.route,
-            arguments = listOf(
-                navArgument("offerId") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val offerId = backStackEntry.arguments?.getString("offerId") ?: ""
-            OfferDetailScreen(
-                offerId = offerId,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
-        composable(NavDestinations.Verification.route) {
+        // Feature screens
+        composable(route = OneLoveDestinations.VERIFICATION_ROUTE) {
             VerificationScreen(
                 onNavigateBack = {
                     navController.popBackStack()
@@ -380,48 +224,92 @@ fun OneLoveNavHost(
             )
         }
         
+        composable(route = OneLoveDestinations.AI_CHAT_ROUTE) {
+            AiChatScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(route = OneLoveDestinations.SUBSCRIPTION_ROUTE) {
+            SubscriptionScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToPayment = {
+                    navController.navigate(OneLoveDestinations.PAYMENT_ROUTE)
+                }
+            )
+        }
+        
+        composable(route = OneLoveDestinations.PAYMENT_ROUTE) {
+            PaymentScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onPaymentSuccess = {
+                    navController.popBackStack(OneLoveDestinations.SUBSCRIPTION_ROUTE, inclusive = true)
+                    navController.navigate(OneLoveDestinations.PROFILE_ROUTE)
+                }
+            )
+        }
+        
+        // Call screens
         composable(
-            route = NavDestinations.Call.route,
+            route = OneLoveDestinations.VIDEO_CALL_ROUTE,
             arguments = listOf(
-                navArgument("callId") { type = NavType.StringType }
+                navArgument(OneLoveDestinations.USER_ID) {
+                    type = NavType.StringType
+                }
             )
         ) { backStackEntry ->
-            val callId = backStackEntry.arguments?.getString("callId") ?: ""
-            CallScreen(
-                callId = callId,
+            val userId = backStackEntry.arguments?.getString(OneLoveDestinations.USER_ID) ?: ""
+            VideoCallScreen(
+                userId = userId,
                 onCallEnded = {
                     navController.popBackStack()
                 }
             )
         }
         
-        // Admin Panel
-        composable(NavDestinations.AdminPanel.route) {
-            AdminPanelScreen(
-                onNavigateBack = {
+        composable(
+            route = OneLoveDestinations.AUDIO_CALL_ROUTE,
+            arguments = listOf(
+                navArgument(OneLoveDestinations.USER_ID) {
+                    type = NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString(OneLoveDestinations.USER_ID) ?: ""
+            AudioCallScreen(
+                userId = userId,
+                onCallEnded = {
                     navController.popBackStack()
-                },
-                onNavigateToUserManagement = {
-                    navController.navigate(NavDestinations.AdminUserManagement.route)
-                },
-                onNavigateToContentManagement = {
-                    navController.navigate(NavDestinations.AdminContentManagement.route)
-                },
-                onNavigateToVerificationManagement = {
-                    navController.navigate(NavDestinations.AdminVerificationManagement.route)
-                },
-                onNavigateToReportManagement = {
-                    navController.navigate(NavDestinations.AdminReportManagement.route)
-                },
-                onNavigateToAIProfileManagement = {
-                    navController.navigate(NavDestinations.AdminAIProfileManagement.route)
-                },
-                onNavigateToAnalytics = {
-                    navController.navigate(NavDestinations.AdminAnalytics.route)
                 }
             )
         }
         
-        // Additional admin screens will be implemented as needed
+        // Profile viewing
+        composable(
+            route = OneLoveDestinations.VIEW_PROFILE_ROUTE,
+            arguments = listOf(
+                navArgument(OneLoveDestinations.USER_ID) {
+                    type = NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString(OneLoveDestinations.USER_ID) ?: ""
+            ViewProfileScreen(
+                userId = userId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToChat = { chatId ->
+                    navController.popBackStack()
+                    navController.navigate(ChatDetailDestination.createRoute(chatId))
+                }
+            )
+        }
     }
 }

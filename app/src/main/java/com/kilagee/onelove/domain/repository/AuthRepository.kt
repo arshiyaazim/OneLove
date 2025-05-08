@@ -1,5 +1,6 @@
 package com.kilagee.onelove.domain.repository
 
+import com.google.firebase.auth.FirebaseUser
 import com.kilagee.onelove.data.model.User
 import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.flow.Flow
@@ -8,154 +9,120 @@ import kotlinx.coroutines.flow.Flow
  * Repository interface for authentication operations
  */
 interface AuthRepository {
+    /**
+     * Get the current authenticated user
+     * @return Flow of Result containing the current FirebaseUser or an error
+     */
+    fun getCurrentUser(): Flow<Result<FirebaseUser?>>
+    
+    /**
+     * Get the current user's profile data
+     * @return Flow of Result containing the current User profile or an error
+     */
+    fun getCurrentUserProfile(): Flow<Result<User?>>
     
     /**
      * Sign in with email and password
+     * @param email User's email
+     * @param password User's password
+     * @return Result containing the FirebaseUser or an error
      */
-    suspend fun signInWithEmailAndPassword(email: String, password: String): Result<User>
+    suspend fun signInWithEmailAndPassword(email: String, password: String): Result<FirebaseUser>
     
     /**
-     * Sign up with email and password
+     * Register a new account with email and password
+     * @param email User's email
+     * @param password User's password
+     * @param name User's name
+     * @return Result containing the FirebaseUser or an error
      */
-    suspend fun signUpWithEmailAndPassword(
-        email: String,
+    suspend fun registerWithEmailAndPassword(
+        email: String, 
         password: String,
-        displayName: String,
-        phoneNumber: String? = null
-    ): Result<User>
+        name: String
+    ): Result<FirebaseUser>
     
     /**
-     * Sign in with Google account
-     */
-    suspend fun signInWithGoogle(idToken: String): Result<User>
-    
-    /**
-     * Sign in with Facebook account
-     */
-    suspend fun signInWithFacebook(accessToken: String): Result<User>
-    
-    /**
-     * Sign in with Apple account
-     */
-    suspend fun signInWithApple(idToken: String, nonce: String): Result<User>
-    
-    /**
-     * Sign in anonymously
-     */
-    suspend fun signInAnonymously(): Result<User>
-    
-    /**
-     * Send email verification
-     */
-    suspend fun sendEmailVerification(): Result<Unit>
-    
-    /**
-     * Send password reset email
+     * Send a password reset email
+     * @param email User's email
+     * @return Result indicating success or failure
      */
     suspend fun sendPasswordResetEmail(email: String): Result<Unit>
     
     /**
-     * Verify password reset code
-     */
-    suspend fun verifyPasswordResetCode(code: String): Result<String> // Returns email
-    
-    /**
-     * Confirm password reset
-     */
-    suspend fun confirmPasswordReset(code: String, newPassword: String): Result<Unit>
-    
-    /**
-     * Send phone verification code
-     */
-    suspend fun sendPhoneVerificationCode(phoneNumber: String): Result<Unit>
-    
-    /**
-     * Verify phone with code
-     */
-    suspend fun verifyPhoneWithCode(verificationId: String, code: String): Result<Unit>
-    
-    /**
-     * Re-authenticate user (for sensitive operations)
-     */
-    suspend fun reauthenticate(password: String): Result<Unit>
-    
-    /**
-     * Change password
-     */
-    suspend fun changePassword(oldPassword: String, newPassword: String): Result<Unit>
-    
-    /**
-     * Link anonymous account with email and password
-     */
-    suspend fun linkWithEmailAndPassword(email: String, password: String): Result<User>
-    
-    /**
-     * Link account with Google
-     */
-    suspend fun linkWithGoogle(idToken: String): Result<User>
-    
-    /**
-     * Link account with Facebook
-     */
-    suspend fun linkWithFacebook(accessToken: String): Result<User>
-    
-    /**
-     * Link account with Apple
-     */
-    suspend fun linkWithApple(idToken: String, nonce: String): Result<User>
-    
-    /**
-     * Link account with phone number
-     */
-    suspend fun linkWithPhoneNumber(verificationId: String, code: String): Result<User>
-    
-    /**
-     * Sign out
+     * Sign out the current user
+     * @return Result indicating success or failure
      */
     suspend fun signOut(): Result<Unit>
     
     /**
-     * Delete account
+     * Update the user's profile information
+     * @param user Updated user profile data
+     * @return Result containing the updated User or an error
+     */
+    suspend fun updateUserProfile(user: User): Result<User>
+    
+    /**
+     * Delete the current user's account
+     * @return Result indicating success or failure
      */
     suspend fun deleteAccount(): Result<Unit>
     
     /**
-     * Check if user is logged in
+     * Send email verification
+     * @return Result indicating success or failure
      */
-    fun isUserLoggedIn(): Boolean
+    suspend fun sendEmailVerification(): Result<Unit>
     
     /**
-     * Get current user
+     * Verify the user's phone number
+     * @param phoneNumber User's phone number
+     * @param verificationCode Verification code received via SMS
+     * @return Result indicating success or failure
      */
-    suspend fun getCurrentUser(): Result<User?>
+    suspend fun verifyPhoneNumber(phoneNumber: String, verificationCode: String): Result<Unit>
     
     /**
-     * Get current user ID
+     * Link an anonymous account with email and password
+     * @param email User's email
+     * @param password User's password
+     * @return Result containing the linked FirebaseUser or an error
      */
-    fun getCurrentUserId(): String?
+    suspend fun linkAnonymousAccountWithEmailAndPassword(
+        email: String,
+        password: String
+    ): Result<FirebaseUser>
     
     /**
-     * Get current user as a flow
+     * Check if a user is already signed in
+     * @return Boolean indicating if a user is signed in
      */
-    fun getCurrentUserFlow(): Flow<Result<User?>>
+    fun isUserSignedIn(): Boolean
     
     /**
-     * Check if email is verified
+     * Check if the current user's email is verified
+     * @return Boolean indicating if the email is verified or null if no user is signed in
      */
-    suspend fun isEmailVerified(): Result<Boolean>
+    fun isEmailVerified(): Boolean?
     
     /**
-     * Check if phone is verified
+     * Reauthenticate the current user with their password
+     * @param password User's current password
+     * @return Result indicating success or failure
      */
-    suspend fun isPhoneVerified(): Result<Boolean>
+    suspend fun reauthenticateWithPassword(password: String): Result<Unit>
     
     /**
-     * Refresh authentication token
+     * Update the user's password
+     * @param newPassword User's new password
+     * @return Result indicating success or failure
      */
-    suspend fun refreshToken(): Result<String> // Returns new token
+    suspend fun updatePassword(newPassword: String): Result<Unit>
     
     /**
-     * Get authentication token
+     * Update the user's email address
+     * @param newEmail User's new email address
+     * @return Result indicating success or failure
      */
-    suspend fun getIdToken(forceRefresh: Boolean = false): Result<String>
+    suspend fun updateEmail(newEmail: String): Result<Unit>
 }

@@ -144,7 +144,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     
     // WebRTC (Video/Audio calls)
-    implementation("org.webrtc:google-webrtc:1.0.32006")
+    implementation("com.github.webrtc-sdk:android:114.5735.02")
     
     // Camera
     implementation("androidx.camera:camera-camera2:1.3.0")
@@ -162,6 +162,9 @@ dependencies {
     
     // Payment integration
     implementation("com.stripe:stripe-android:20.35.1")
+    
+    // Logging
+    implementation("com.jakewharton.timber:timber:5.0.1")
     
     // Testing
     testImplementation("junit:junit:4.13.2")

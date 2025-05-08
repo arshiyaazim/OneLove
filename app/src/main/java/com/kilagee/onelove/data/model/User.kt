@@ -1,138 +1,112 @@
 package com.kilagee.onelove.data.model
 
 import android.os.Parcelable
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.PropertyName
 import kotlinx.parcelize.Parcelize
-import java.util.Date
 
 /**
- * Data class representing a user in the application
+ * Verification level for user accounts
+ */
+enum class VerificationLevel {
+    UNVERIFIED,    // Basic account with email verification only
+    PENDING,       // Verification requested but not approved
+    PHOTO,         // Photo verification approved
+    ID,            // Identity document verification approved
+    PREMIUM        // Higher level verification with premium subscription
+}
+
+/**
+ * Relationship preferences
+ */
+enum class RelationshipPreference {
+    DATING,
+    FRIENDSHIP,
+    CASUAL,
+    RELATIONSHIP,
+    MARRIAGE
+}
+
+/**
+ * Subscription tiers
+ */
+enum class SubscriptionTier {
+    FREE,          // Free tier with limited features
+    BASIC,         // Basic paid tier
+    PREMIUM,       // Premium tier with most features
+    VIP            // VIP tier with all features and perks
+}
+
+/**
+ * User activity status
+ */
+enum class UserStatus {
+    ONLINE,
+    AWAY,
+    OFFLINE,
+    DO_NOT_DISTURB
+}
+
+/**
+ * Main user model that represents a user profile
  */
 @Parcelize
 data class User(
-    val id: String,
-    val name: String,
-    val email: String? = null,
-    val phoneNumber: String? = null,
-    val age: Int,
-    val gender: String,
-    val bio: String? = null,
-    val height: Int? = null, // in cm
-    val occupation: String? = null,
-    val education: String? = null,
+    @DocumentId
+    val id: String = "",
+    
+    // Basic profile information
+    val email: String = "",
+    val name: String = "",
+    val age: Int = 0,
+    val gender: String = "",
+    val bio: String = "",
+    val phone: String? = null,
+    
+    // Profile photos (URLs)
+    val profilePhotoUrl: String = "",
+    val photoUrls: List<String> = emptyList(),
+    
+    // Location data
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val locationName: String = "",
+    
+    // Preferences and interests
+    val relationshipPreferences: List<RelationshipPreference> = emptyList(),
     val interests: List<String> = emptyList(),
-    val profileImageUrls: List<String> = emptyList(),
-    val location: Location? = null,
-    val preferences: UserPreferences? = null,
-    val isVerified: Boolean = false,
-    val verificationLevel: Int = 0, // 0: None, 1: Email, 2: Phone, 3: ID, 4: Social Media
-    val isPremium: Boolean = false,
-    val premiumTier: String? = null, // "basic", "gold", "platinum"
-    val premiumExpiresAt: Date? = null,
-    val createdAt: Date,
-    val lastActive: Date? = null,
-    val lastLocationUpdate: Date? = null,
-    val points: Int = 0,
-    val isOnline: Boolean = false,
-    val blockedUsers: List<String> = emptyList(),
-    val profileSettings: ProfileSettings? = null,
-    val notificationSettings: NotificationSettings? = null,
-    val privacySettings: PrivacySettings? = null,
-    val profileCompletion: Int = 0, // Percentage of profile completion
-    val socialLinks: Map<String, String> = emptyMap() // platform -> url
-) : Parcelable
-
-/**
- * Data class representing a user's location
- */
-@Parcelize
-data class Location(
-    val latitude: Double,
-    val longitude: Double,
-    val city: String? = null,
-    val country: String? = null,
-    val formattedAddress: String? = null,
-    val lastUpdated: Date? = null
-) : Parcelable
-
-/**
- * Data class representing user preferences for discovery
- */
-@Parcelize
-data class UserPreferences(
-    val minAge: Int = 18,
-    val maxAge: Int = 99,
-    val maxDistance: Int = 50, // in km
+    val minAgePreference: Int = 18,
+    val maxAgePreference: Int = 50,
     val genderPreferences: List<String> = emptyList(),
-    val showMe: Boolean = true,
-    val autoPlayVideos: Boolean = true,
-    val showOnlineStatus: Boolean = true,
-    val showLastActive: Boolean = true
+    val maxDistance: Int = 50,
+    
+    // Verification and status
+    val verificationLevel: VerificationLevel = VerificationLevel.UNVERIFIED,
+    val isProfileComplete: Boolean = false,
+    val status: UserStatus = UserStatus.OFFLINE,
+    val lastActive: Timestamp = Timestamp.now(),
+    
+    // Subscription information
+    val subscriptionTier: SubscriptionTier = SubscriptionTier.FREE,
+    val subscriptionExpiryDate: Timestamp? = null,
+    val points: Int = 0,
+    
+    // Security and analytics
+    val deviceTokens: List<String> = emptyList(),
+    @PropertyName("created_at")
+    val createdAt: Timestamp = Timestamp.now(),
+    @PropertyName("updated_at") 
+    val updatedAt: Timestamp = Timestamp.now(),
+    
+    // Engagement metrics
+    val matchCount: Int = 0,
+    val messageCount: Int = 0,
+    val profileViewCount: Int = 0,
+    val likeCount: Int = 0,
+    
+    // Admin fields
+    val isAdmin: Boolean = false,
+    val isModerated: Boolean = false,
+    val isBanned: Boolean = false
 ) : Parcelable
-
-/**
- * Data class representing profile settings
- */
-@Parcelize
-data class ProfileSettings(
-    val showAge: Boolean = true,
-    val showDistance: Boolean = true,
-    val showLastActive: Boolean = true,
-    val showOnlineStatus: Boolean = true
-) : Parcelable
-
-/**
- * Data class representing notification settings
- */
-@Parcelize
-data class NotificationSettings(
-    val newMatches: Boolean = true,
-    val messages: Boolean = true,
-    val messageReplies: Boolean = true,
-    val superLikes: Boolean = true,
-    val appUpdates: Boolean = true,
-    val offers: Boolean = true,
-    val emailNotifications: Boolean = true,
-    val pushNotifications: Boolean = true,
-    val callNotifications: Boolean = true,
-    val vibrate: Boolean = true,
-    val sound: Boolean = true
-) : Parcelable
-
-/**
- * Data class representing privacy settings
- */
-@Parcelize
-data class PrivacySettings(
-    val showMeInDiscovery: Boolean = true,
-    val showOnlineStatus: Boolean = true,
-    val showReadReceipts: Boolean = true,
-    val showLastActive: Boolean = true,
-    val allowLocationTracking: Boolean = true,
-    val dataSharing: Boolean = true,
-    val allowAnalytics: Boolean = true
-) : Parcelable
-
-/**
- * Data class representing actions taken on a user
- */
-@Parcelize
-data class UserAction(
-    val userId: String,
-    val actionType: ActionType,
-    val timestamp: Date,
-    val note: String? = null
-) : Parcelable
-
-/**
- * Enum representing types of actions that can be taken on users
- */
-@Parcelize
-enum class ActionType : Parcelable {
-    LIKE,
-    SUPER_LIKE,
-    PASS,
-    BLOCK,
-    REPORT,
-    MESSAGE,
-    MATCH
-}

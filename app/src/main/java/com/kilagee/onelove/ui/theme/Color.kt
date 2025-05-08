@@ -2,55 +2,78 @@ package com.kilagee.onelove.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Primary colors
-val PrimaryLight = Color(0xFFE91E63)
-val PrimaryDark = Color(0xFFD81B60)
-val PrimaryVariant = Color(0xFFC2185B)
+// Light theme colors
+val md_theme_light_primary = Color(0xFFCA3F77)
+val md_theme_light_onPrimary = Color(0xFFFFFFFF)
+val md_theme_light_primaryContainer = Color(0xFFFFD9E2)
+val md_theme_light_onPrimaryContainer = Color(0xFF3E0021)
+val md_theme_light_secondary = Color(0xFF74565F)
+val md_theme_light_onSecondary = Color(0xFFFFFFFF)
+val md_theme_light_secondaryContainer = Color(0xFFFFD9E2)
+val md_theme_light_onSecondaryContainer = Color(0xFF2B151C)
+val md_theme_light_tertiary = Color(0xFF7D5635)
+val md_theme_light_onTertiary = Color(0xFFFFFFFF)
+val md_theme_light_tertiaryContainer = Color(0xFFFFDCC1)
+val md_theme_light_onTertiaryContainer = Color(0xFF2E1500)
+val md_theme_light_error = Color(0xFFBA1A1A)
+val md_theme_light_errorContainer = Color(0xFFFFDAD6)
+val md_theme_light_onError = Color(0xFFFFFFFF)
+val md_theme_light_onErrorContainer = Color(0xFF410002)
+val md_theme_light_background = Color(0xFFFFFBFF)
+val md_theme_light_onBackground = Color(0xFF201A1B)
+val md_theme_light_surface = Color(0xFFFFFBFF)
+val md_theme_light_onSurface = Color(0xFF201A1B)
+val md_theme_light_surfaceVariant = Color(0xFFF2DDE2)
+val md_theme_light_onSurfaceVariant = Color(0xFF514347)
+val md_theme_light_outline = Color(0xFF837377)
+val md_theme_light_inverseOnSurface = Color(0xFFFAEEF0)
+val md_theme_light_inverseSurface = Color(0xFF352F30)
+val md_theme_light_inversePrimary = Color(0xFFFFB1C8)
+val md_theme_light_shadow = Color(0xFF000000)
+val md_theme_light_surfaceTint = Color(0xFFCA3F77)
+val md_theme_light_outlineVariant = Color(0xFFD5C2C6)
+val md_theme_light_scrim = Color(0xFF000000)
 
-// Secondary colors
-val SecondaryLight = Color(0xFF673AB7)
-val SecondaryDark = Color(0xFF5E35B1)
-val SecondaryVariant = Color(0xFF512DA8)
+// Dark theme colors
+val md_theme_dark_primary = Color(0xFFFFB1C8)
+val md_theme_dark_onPrimary = Color(0xFF650033)
+val md_theme_dark_primaryContainer = Color(0xFF8E1A54)
+val md_theme_dark_onPrimaryContainer = Color(0xFFFFD9E2)
+val md_theme_dark_secondary = Color(0xFFE2BDC7)
+val md_theme_dark_onSecondary = Color(0xFF422931)
+val md_theme_dark_secondaryContainer = Color(0xFF5A3F47)
+val md_theme_dark_onSecondaryContainer = Color(0xFFFFD9E2)
+val md_theme_dark_tertiary = Color(0xFFEFBD94)
+val md_theme_dark_onTertiary = Color(0xFF48290C)
+val md_theme_dark_tertiaryContainer = Color(0xFF623F20)
+val md_theme_dark_onTertiaryContainer = Color(0xFFFFDCC1)
+val md_theme_dark_error = Color(0xFFFFB4AB)
+val md_theme_dark_errorContainer = Color(0xFF93000A)
+val md_theme_dark_onError = Color(0xFF690005)
+val md_theme_dark_onErrorContainer = Color(0xFFFFDAD6)
+val md_theme_dark_background = Color(0xFF201A1B)
+val md_theme_dark_onBackground = Color(0xFFEBE0E1)
+val md_theme_dark_surface = Color(0xFF201A1B)
+val md_theme_dark_onSurface = Color(0xFFEBE0E1)
+val md_theme_dark_surfaceVariant = Color(0xFF514347)
+val md_theme_dark_onSurfaceVariant = Color(0xFFD5C2C6)
+val md_theme_dark_outline = Color(0xFF9E8C90)
+val md_theme_dark_inverseOnSurface = Color(0xFF201A1B)
+val md_theme_dark_inverseSurface = Color(0xFFEBE0E1)
+val md_theme_dark_inversePrimary = Color(0xFFCA3F77)
+val md_theme_dark_shadow = Color(0xFF000000)
+val md_theme_dark_surfaceTint = Color(0xFFFFB1C8)
+val md_theme_dark_outlineVariant = Color(0xFF514347)
+val md_theme_dark_scrim = Color(0xFF000000)
 
-// Background colors
-val BackgroundLight = Color(0xFFF5F5F5)
-val BackgroundDark = Color(0xFF121212)
-
-// Surface colors
-val SurfaceLight = Color(0xFFFFFFFF)
-val SurfaceDark = Color(0xFF1E1E1E)
-
-// Error colors
-val ErrorLight = Color(0xFFB00020)
-val ErrorDark = Color(0xFFCF6679)
-
-// Success
-val SuccessLight = Color(0xFF4CAF50)
-val SuccessDark = Color(0xFF388E3C)
-
-// Warning
-val WarningLight = Color(0xFFFFC107)
-val WarningDark = Color(0xFFFFA000)
-
-// Info
-val InfoLight = Color(0xFF2196F3)
-val InfoDark = Color(0xFF1976D2)
-
-// Gray scale
-val Gray100 = Color(0xFFF5F5F5)
-val Gray200 = Color(0xFFEEEEEE)
-val Gray300 = Color(0xFFE0E0E0)
-val Gray400 = Color(0xFFBDBDBD)
-val Gray500 = Color(0xFF9E9E9E)
-val Gray600 = Color(0xFF757575)
-val Gray700 = Color(0xFF616161)
-val Gray800 = Color(0xFF424242)
-val Gray900 = Color(0xFF212121)
-
-// Heart
-val HeartRed = Color(0xFFFF4081)
-
-// Match colors
-val MatchGold = Color(0xFFFFD700)
-val PremiumGold = Color(0xFFFFD700)
-val VipPurple = Color(0xFF9C27B0)
+// Additional custom colors
+val heart_red = Color(0xFFE91E63)
+val match_gradient_start = Color(0xFFE91E63)
+val match_gradient_end = Color(0xFFF48FB1)
+val verification_badge = Color(0xFF4CAF50)
+val premium_gold = Color(0xFFFFD700)
+val premium_gradient_start = Color(0xFFFFC107)
+val premium_gradient_end = Color(0xFFFF9800)
+val online_indicator = Color(0xFF4CAF50)
+val offline_indicator = Color(0xFF9E9E9E)
+val message_indicator = Color(0xFFF44336)

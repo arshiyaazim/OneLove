@@ -1,111 +1,107 @@
 package com.kilagee.onelove.domain.repository
 
-import com.kilagee.onelove.data.model.GeoPoint
 import com.kilagee.onelove.data.model.User
-import com.kilagee.onelove.data.model.UserSettings
-import com.kilagee.onelove.data.model.VerificationStatus
 import com.kilagee.onelove.domain.util.Result
-import kotlinx.coroutines.flow.Flow
-import java.io.File
-import java.util.Date
 
 /**
- * Repository interface for user operations
+ * Interface for user-related operations
  */
 interface UserRepository {
     
     /**
-     * Create a new user profile
+     * Get users by IDs
+     * @param userIds List of user IDs to retrieve
+     * @return List of [User] objects
      */
-    suspend fun createUserProfile(user: User): Result<String> // Returns user ID
+    suspend fun getUsersById(userIds: List<String>): Result<List<User>>
     
     /**
-     * Get user by ID
+     * Get recent chat partners
+     * @param limit Maximum number of users to retrieve
+     * @return List of [User] objects
      */
-    suspend fun getUserById(userId: String): Result<User>
+    suspend fun getRecentChatPartners(limit: Int = 10): Result<List<User>>
     
     /**
-     * Get user as a flow for real-time updates
+     * Get user matches
+     * @param limit Maximum number of users to retrieve
+     * @return List of [User] objects
      */
-    fun getUserFlow(userId: String): Flow<Result<User>>
+    suspend fun getMatches(limit: Int = 50): Result<List<User>>
     
     /**
-     * Update user profile
+     * Get users liked by the current user
+     * @param limit Maximum number of users to retrieve
+     * @return List of [User] objects
      */
-    suspend fun updateUserProfile(user: User): Result<Unit>
+    suspend fun getLikedUsers(limit: Int = 50): Result<List<User>>
     
     /**
-     * Update specific user fields
+     * Get profiles visited by the current user
+     * @param limit Maximum number of profiles to retrieve
+     * @return List of [User] objects
      */
-    suspend fun updateUserFields(userId: String, fields: Map<String, Any?>): Result<Unit>
+    suspend fun getVisitedProfiles(limit: Int = 50): Result<List<User>>
     
     /**
-     * Upload profile photo
+     * Get users who liked the current user
+     * @param limit Maximum number of users to retrieve
+     * @return List of [User] objects
      */
-    suspend fun uploadProfilePhoto(userId: String, photoFile: File): Result<String> // Returns photo URL
+    suspend fun getUsersWhoLikedMe(limit: Int = 50): Result<List<User>>
     
     /**
-     * Delete profile photo
+     * Get blocked users
+     * @param limit Maximum number of users to retrieve
+     * @return List of [User] objects
      */
-    suspend fun deleteProfilePhoto(userId: String, photoUrl: String): Result<Unit>
-    
-    /**
-     * Update user location
-     */
-    suspend fun updateUserLocation(userId: String, location: GeoPoint): Result<Unit>
-    
-    /**
-     * Update user settings
-     */
-    suspend fun updateUserSettings(userId: String, settings: UserSettings): Result<Unit>
-    
-    /**
-     * Update user's last active timestamp
-     */
-    suspend fun updateLastActive(userId: String, timestamp: Date = Date()): Result<Unit>
+    suspend fun getBlockedUsers(limit: Int = 50): Result<List<User>>
     
     /**
      * Block a user
+     * @param userId ID of the user to block
      */
-    suspend fun blockUser(currentUserId: String, userToBlockId: String): Result<Unit>
+    suspend fun blockUser(userId: String): Result<Unit>
     
     /**
      * Unblock a user
+     * @param userId ID of the user to unblock
      */
-    suspend fun unblockUser(currentUserId: String, userToUnblockId: String): Result<Unit>
+    suspend fun unblockUser(userId: String): Result<Unit>
     
     /**
-     * Get all blocked users
+     * Search users by criteria
+     * @param query Search query
+     * @param limit Maximum number of users to retrieve
+     * @return List of [User] objects
      */
-    suspend fun getBlockedUsers(userId: String): Result<List<User>>
+    suspend fun searchUsers(query: String, limit: Int = 20): Result<List<User>>
     
     /**
-     * Request profile verification
+     * Track a profile visit
+     * @param userId ID of the user whose profile was visited
      */
-    suspend fun requestVerification(userId: String, selfieFile: File, idFile: File): Result<Unit>
+    suspend fun trackProfileVisit(userId: String): Result<Unit>
     
     /**
-     * Get verification status
+     * Get recommended users based on preferences and interactions
+     * @param limit Maximum number of users to retrieve
+     * @return List of [User] objects
      */
-    suspend fun getVerificationStatus(userId: String): Result<VerificationStatus>
+    suspend fun getRecommendedUsers(limit: Int = 20): Result<List<User>>
     
     /**
-     * Get potential matches for a user based on preferences
+     * Get popular users within the app
+     * @param limit Maximum number of users to retrieve
+     * @return List of [User] objects
      */
-    suspend fun getPotentialMatches(userId: String, limit: Int = 20): Result<List<User>>
+    suspend fun getPopularUsers(limit: Int = 20): Result<List<User>>
     
     /**
-     * Observe user points
+     * Get nearby users based on current location
+     * @param radiusKm Radius in kilometers
+     * @param limit Maximum number of users to retrieve
+     * @return List of [User] objects
      */
-    fun observeUserPoints(userId: String): Flow<Result<Int>>
-    
-    /**
-     * Check if a user is an admin
-     */
-    suspend fun isUserAdmin(userId: String): Result<Boolean>
-    
-    /**
-     * Search users by name or email (admin only)
-     */
-    suspend fun searchUsers(query: String, isAdminSearch: Boolean = false): Result<List<User>>
+    suspend fun getNearbyUsers(radiusKm: Int = 50, limit: Int = 20): Result<List<User>>
 }

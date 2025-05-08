@@ -1,217 +1,213 @@
 package com.kilagee.onelove.ui
 
-import android.Manifest
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
-import androidx.lifecycle.Lifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavHostController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import com.kilagee.onelove.ui.navigation.BottomNavigationBar
-import com.kilagee.onelove.ui.navigation.NavDestinations
+import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import com.kilagee.onelove.ui.navigation.BottomNavItem
+import com.kilagee.onelove.ui.navigation.OneLoveDestinations
 import com.kilagee.onelove.ui.navigation.OneLoveNavHost
 import com.kilagee.onelove.ui.theme.OneLoveTheme
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
+import java.util.Locale
 
-// CompositionLocal for making the SnackbarHostState available to composables
-val LocalSnackbarHostState = compositionLocalOf<SnackbarHostState> { error("No SnackbarHostState provided") }
-
+/**
+ * Main Activity for the OneLove dating app
+ * 
+ * This activity is the entry point of the app and handles:
+ * - Splash screen
+ * - Theme initialization
+ * - Navigation setup
+ * - System UI (status/navigation bar) configuration
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    
-    private val viewModel: MainViewModel by viewModels()
-    
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Install splash screen before calling super.onCreate()
+        installSplashScreen()
+        
         super.onCreate(savedInstanceState)
         
-        // Use edge-to-edge display
+        // Configure edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
         
-        // Handle splash screen
-        installSplashScreen().apply {
-            setKeepOnScreenCondition {
-                viewModel.isLoading.value
-            }
-        }
-        
-        // Request required permissions
-        requestPermissions()
-        
-        // Observe remote messages for deep linking
-        setupDeepLinking()
-        
         setContent {
-            val darkTheme by viewModel.isDarkTheme.collectAsStateWithLifecycle(initialValue = false)
-            val snackbarHostState = remember { SnackbarHostState() }
-            
-            CompositionLocalProvider(LocalSnackbarHostState provides snackbarHostState) {
-                OneLoveTheme(darkTheme = darkTheme) {
-                    MainScreen(
-                        startDestination = viewModel.startDestination,
-                        onThemeChanged = viewModel::updateTheme
+            OneLoveTheme {
+                // Configure status bar colors
+                val systemUiController = rememberSystemUiController()
+                val useDarkIcons = MaterialTheme.colorScheme.background.luminance() > 0.5
+                
+                LaunchedEffect(systemUiController, useDarkIcons) {
+                    systemUiController.setSystemBarsColor(
+                        color = androidx.compose.ui.graphics.Color.Transparent,
+                        darkIcons = useDarkIcons
                     )
                 }
-            }
-        }
-    }
-    
-    private fun requestPermissions() {
-        val permissions = mutableListOf<String>()
-        
-        // Notification permission (Android 13+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        
-        // Location permissions
-        permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
-        
-        // Request permissions if needed
-        if (permissions.isNotEmpty()) {
-            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-                // Optional: Process results if needed
-            }.launch(permissions.toTypedArray())
-        }
-    }
-    
-    private fun setupDeepLinking() {
-        lifecycleScope.launch {
-            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.deepLinkIntent.collect { intent ->
-                    intent?.let {
-                        // Process intent for deep linking
-                        // This will be handled by the view model
-                    }
+                
+                // A surface container using the 'background' color from the theme
+                Surface(
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    OneLoveApp()
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+/**
+ * Main composable for the app
+ */
 @Composable
-fun MainScreen(
-    startDestination: String,
-    onThemeChanged: (Boolean) -> Unit
+fun OneLoveApp(
+    viewModel: MainActivityViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
-    val snackbarHostState = LocalSnackbarHostState.current
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = navBackStackEntry?.destination
     
-    // Request fine location and camera permissions
-    val permissionsState = rememberMultiplePermissionsState(
-        permissions = listOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.CAMERA
-        )
-    )
+    // Observe authentication state
+    val authState by viewModel.authState.collectAsStateWithLifecycle()
     
-    LaunchedEffect(Unit) {
-        permissionsState.launchMultiplePermissionRequest()
+    // Unread message count for badge
+    val unreadMessageCount by viewModel.unreadMessageCount.collectAsStateWithLifecycle()
+    
+    // Control bottom navigation visibility
+    val showBottomNav = rememberSaveable { mutableStateOf(false) }
+    val currentRoute = currentDestination?.route
+    
+    // Update bottom nav visibility based on current route
+    LaunchedEffect(currentRoute) {
+        showBottomNav.value = when (currentRoute) {
+            OneLoveDestinations.DISCOVER_ROUTE,
+            OneLoveDestinations.MATCHES_ROUTE,
+            OneLoveDestinations.CHAT_ROUTE,
+            OneLoveDestinations.PROFILE_ROUTE -> true
+            else -> false
+        }
     }
     
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = { BottomBar(navController) },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+        bottomBar = {
+            BottomNavBar(
+                navController = navController,
+                showBottomNav = showBottomNav.value,
+                unreadMessageCount = unreadMessageCount
+            )
+        }
+    ) { innerPadding ->
+        OneLoveNavHost(
+            navController = navController,
+            modifier = Modifier.padding(innerPadding),
+            startDestination = OneLoveDestinations.SPLASH_ROUTE
+        )
+    }
+}
+
+/**
+ * Bottom navigation bar with badges
+ */
+@Composable
+fun BottomNavBar(
+    navController: NavController,
+    showBottomNav: Boolean,
+    unreadMessageCount: Int
+) {
+    AnimatedVisibility(
+        visible = showBottomNav,
+        enter = slideInVertically(initialOffsetY = { it }),
+        exit = slideOutVertically(targetOffsetY = { it })
+    ) {
+        NavigationBar(
+            windowInsets = WindowInsets.navigationBars
         ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
-            ) {
-                OneLoveNavHost(
-                    navController = navController,
-                    startDestination = startDestination,
-                    onNavigateToBottomNavDestination = { destination ->
-                        // If the destination is already in the back stack, pop to it
-                        // Otherwise navigate to it
-                        val navOptions = navController.getBackStackEntry(destination.route)
-                        if (navOptions != null) {
-                            navController.popBackStack(destination.route, false)
-                        } else {
-                            navController.navigate(destination.route) {
-                                // Pop up to the start destination
-                                popUpTo(navController.graph.startDestinationId) {
-                                    saveState = true
+            val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val currentDestination = navBackStackEntry?.destination
+            
+            BottomNavItem.values().forEach { item ->
+                val selected = currentDestination?.hierarchy?.any { 
+                    it.route == item.route 
+                } == true
+                
+                NavigationBarItem(
+                    icon = {
+                        if (item == BottomNavItem.CHAT && unreadMessageCount > 0) {
+                            BadgedBox(
+                                badge = {
+                                    Badge {
+                                        Text(
+                                            text = if (unreadMessageCount > 99) "99+" 
+                                                  else unreadMessageCount.toString()
+                                        )
+                                    }
                                 }
-                                // Avoid duplicate destinations
-                                launchSingleTop = true
-                                // Restore state if previously saved
-                                restoreState = true
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = item.iconRes),
+                                    contentDescription = stringResource(id = item.titleRes)
+                                )
                             }
+                        } else {
+                            Icon(
+                                painter = painterResource(id = item.iconRes),
+                                contentDescription = stringResource(id = item.titleRes)
+                            )
+                        }
+                    },
+                    label = { Text(stringResource(id = item.titleRes)) },
+                    selected = selected,
+                    onClick = {
+                        navController.navigate(item.route) {
+                            // Pop up to the start destination of the graph to
+                            // avoid building up a large stack of destinations
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            // Avoid multiple copies of the same destination when
+                            // reselecting the same item
+                            launchSingleTop = true
+                            // Restore state when reselecting a previously selected item
+                            restoreState = true
                         }
                     }
                 )
             }
         }
-    }
-}
-
-@Composable
-fun BottomBar(navController: NavHostController) {
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
-    
-    // Determine if bottom bar should be visible
-    val showBottomBar = NavDestinations.bottomNavItems.any { destination ->
-        currentDestination?.hierarchy?.any { it.route == destination.route } == true
-    }
-    
-    // Find the current navigation destination object
-    val currentNavDestination = currentDestination?.route?.let { route ->
-        NavDestinations.bottomNavItems.find { it.route == route } ?: NavDestinations.Home
-    } ?: NavDestinations.Home
-    
-    if (showBottomBar) {
-        BottomNavigationBar(
-            currentDestination = currentNavDestination,
-            onNavigate = { destination ->
-                if (currentNavDestination.route != destination.route) {
-                    navController.navigate(destination.route) {
-                        // Pop up to the start destination of the graph
-                        popUpTo(navController.graph.startDestinationId) {
-                            saveState = true
-                        }
-                        // Avoid multiple copies of the same destination
-                        launchSingleTop = true
-                        // Restore state when reselecting a previously selected item
-                        restoreState = true
-                    }
-                }
-            }
-        )
     }
 }
