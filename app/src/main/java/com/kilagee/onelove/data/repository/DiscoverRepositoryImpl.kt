@@ -6,6 +6,7 @@ import com.kilagee.onelove.data.local.UserDao
 import com.kilagee.onelove.data.model.Match
 import com.kilagee.onelove.data.model.MatchStatus
 import com.kilagee.onelove.data.model.User
+import com.kilagee.onelove.domain.recommendation.RecommendationEngine
 import com.kilagee.onelove.domain.repository.AuthRepository
 import com.kilagee.onelove.domain.repository.DiscoverRepository
 import com.kilagee.onelove.domain.util.Result
@@ -25,12 +26,15 @@ import javax.inject.Inject
 class DiscoverRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val authRepository: AuthRepository,
-    private val userDao: UserDao
+    private val userDao: UserDao,
+    private val recommendationEngine: RecommendationEngine
 ) : DiscoverRepository {
 
     private val usersCollection = firestore.collection("users")
     private val matchesCollection = firestore.collection("matches")
     private val skipsCollection = firestore.collection("skips")
+    private val userPreferencesCollection = firestore.collection("user_preferences")
+    private val userInteractionsCollection = firestore.collection("user_interactions")
     
     /**
      * Get potential matches based on user preferences
@@ -127,12 +131,35 @@ class DiscoverRepositoryImpl @Inject constructor(
                 potentialMatches
             }
             
+            // Get user's liked and disliked profiles for recommendation tuning
+            val likedProfiles = getUserInteractionProfiles(currentUserId, "like")
+            val dislikedProfiles = getUserInteractionProfiles(currentUserId, "dislike")
+            
+            // Use recommendation engine to sort matches
+            val sortedMatches = if (filteredByDistance.isNotEmpty()) {
+                recommendationEngine.getRecommendedMatches(currentUser, filteredByDistance)
+            } else {
+                filteredByDistance
+            }
+            
+            // Update user preference weights based on interactions
+            if (likedProfiles.isNotEmpty() || dislikedProfiles.isNotEmpty()) {
+                val preferenceWeights = recommendationEngine.updateUserPreferencesBasedOnInteractions(
+                    currentUser, likedProfiles, dislikedProfiles
+                )
+                
+                // Store updated preferences
+                if (preferenceWeights.isNotEmpty()) {
+                    storeUserPreferenceWeights(currentUserId, preferenceWeights)
+                }
+            }
+            
             // Cache users in local database
-            filteredByDistance.forEach { user ->
+            sortedMatches.forEach { user ->
                 userDao.insertUser(user)
             }
             
-            trySend(Result.Success(filteredByDistance))
+            trySend(Result.Success(sortedMatches))
         } catch (e: Exception) {
             Timber.e(e, "Error getting potential matches")
             trySend(Result.Error("Failed to get potential matches: ${e.message}"))
@@ -145,15 +172,111 @@ class DiscoverRepositoryImpl @Inject constructor(
     }
     
     /**
+     * Get user interaction profiles (liked or disliked)
+     */
+    private suspend fun getUserInteractionProfiles(userId: String, interactionType: String): List<User> {
+        try {
+            // Query for user interactions of specific type
+            val interactionsQuery = userInteractionsCollection
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("type", interactionType)
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .limit(50) // Limit to most recent interactions
+                .get()
+                .await()
+                
+            // Get target user IDs
+            val targetUserIds = interactionsQuery.documents.mapNotNull { doc ->
+                doc.getString("targetUserId")
+            }
+            
+            if (targetUserIds.isEmpty()) {
+                return emptyList()
+            }
+            
+            // Get the user profiles
+            val profiles = mutableListOf<User>()
+            for (targetId in targetUserIds) {
+                // First try to get from cache
+                val cachedUser = userDao.getUserById(targetId)
+                if (cachedUser != null) {
+                    profiles.add(cachedUser)
+                    continue
+                }
+                
+                // If not in cache, get from Firestore
+                val userDoc = usersCollection.document(targetId).get().await()
+                val user = userDoc.toObject(User::class.java)
+                if (user != null) {
+                    profiles.add(user)
+                    // Cache for future use
+                    userDao.insertUser(user)
+                }
+            }
+            
+            return profiles
+        } catch (e: Exception) {
+            Timber.e(e, "Error getting user interaction profiles")
+            return emptyList()
+        }
+    }
+    
+    /**
+     * Store user preference weights in Firestore
+     */
+    private suspend fun storeUserPreferenceWeights(userId: String, weights: Map<String, Double>) {
+        try {
+            // Convert weights to a storable format
+            val data = hashMapOf<String, Any>(
+                "userId" to userId,
+                "weights" to weights,
+                "updatedAt" to Date()
+            )
+            
+            // Store in Firestore
+            userPreferencesCollection.document(userId).set(data).await()
+        } catch (e: Exception) {
+            Timber.e(e, "Error storing user preference weights")
+        }
+    }
+    
+    /**
      * Create a new match
      */
     override suspend fun createMatch(match: Match): Result<Match> {
         return try {
             matchesCollection.document(match.id).set(match).await()
+            
+            // Record user interaction
+            recordUserInteraction(match.userId, match.matchedUserId, "like")
+            
             Result.Success(match)
         } catch (e: Exception) {
             Timber.e(e, "Error creating match")
             Result.Error("Failed to create match: ${e.message}")
+        }
+    }
+    
+    /**
+     * Record user interaction for improving recommendations
+     */
+    private suspend fun recordUserInteraction(
+        userId: String, 
+        targetUserId: String,
+        interactionType: String
+    ) {
+        try {
+            val interaction = hashMapOf(
+                "userId" to userId,
+                "targetUserId" to targetUserId,
+                "type" to interactionType,
+                "timestamp" to Date()
+            )
+            
+            val interactionId = "$userId-$targetUserId-${Date().time}"
+            userInteractionsCollection.document(interactionId).set(interaction).await()
+        } catch (e: Exception) {
+            Timber.e(e, "Error recording user interaction")
         }
     }
     
@@ -216,6 +339,10 @@ class DiscoverRepositoryImpl @Inject constructor(
             
             val skipId = "$userId-$skippedUserId"
             skipsCollection.document(skipId).set(skip).await()
+            
+            // Record user interaction as dislike
+            recordUserInteraction(userId, skippedUserId, "dislike")
+            
             Result.Success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Error skipping user")
@@ -289,10 +416,20 @@ class DiscoverRepositoryImpl @Inject constructor(
             // Get the users
             val likers = mutableListOf<User>()
             for (likerId in likerIds) {
+                // First try to get from cache
+                val cachedUser = userDao.getUserById(likerId)
+                if (cachedUser != null) {
+                    likers.add(cachedUser)
+                    continue
+                }
+                
+                // If not in cache, get from Firestore
                 val userDoc = usersCollection.document(likerId).get().await()
                 val user = userDoc.toObject(User::class.java)
                 if (user != null) {
                     likers.add(user)
+                    // Cache for future use
+                    userDao.insertUser(user)
                 }
             }
             

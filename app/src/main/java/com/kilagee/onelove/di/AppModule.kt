@@ -16,6 +16,7 @@ import com.kilagee.onelove.data.repository.AuthRepositoryImpl
 import com.kilagee.onelove.data.repository.ChatRepositoryImpl
 import com.kilagee.onelove.data.repository.DiscoverRepositoryImpl
 import com.kilagee.onelove.data.repository.UserRepositoryImpl
+import com.kilagee.onelove.domain.recommendation.RecommendationEngine
 import com.kilagee.onelove.domain.repository.AuthRepository
 import com.kilagee.onelove.domain.repository.ChatRepository
 import com.kilagee.onelove.domain.repository.DiscoverRepository
@@ -98,6 +99,15 @@ object AppModule {
     }
     
     /**
+     * Provide Recommendation Engine
+     */
+    @Provides
+    @Singleton
+    fun provideRecommendationEngine(): RecommendationEngine {
+        return RecommendationEngine()
+    }
+    
+    /**
      * Provide Auth repository
      */
     @Provides
@@ -130,9 +140,10 @@ object AppModule {
     fun provideDiscoverRepository(
         firestore: FirebaseFirestore,
         authRepository: AuthRepository,
-        userDao: UserDao
+        userDao: UserDao,
+        recommendationEngine: RecommendationEngine
     ): DiscoverRepository {
-        return DiscoverRepositoryImpl(firestore, authRepository, userDao)
+        return DiscoverRepositoryImpl(firestore, authRepository, userDao, recommendationEngine)
     }
     
     /**
