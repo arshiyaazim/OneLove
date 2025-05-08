@@ -1,515 +1,488 @@
 package com.kilagee.onelove.data.repository
 
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.GeoPoint
-import com.kilagee.onelove.data.model.Like
-import com.kilagee.onelove.data.model.Match
-import com.kilagee.onelove.data.model.Skip
+import com.google.firebase.firestore.Query
+import com.kilagee.onelove.data.local.UserDao
 import com.kilagee.onelove.data.model.User
-import com.kilagee.onelove.domain.model.UserDomain
 import com.kilagee.onelove.domain.repository.UserRepository
 import com.kilagee.onelove.domain.util.Result
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
+import timber.log.Timber
+import java.util.Date
 import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
- * Implementation of UserRepository that uses Firebase services
+ * Repository implementation for user-related functions
  */
-@Singleton
 class UserRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val auth: FirebaseAuth
+    private val userDao: UserDao
 ) : UserRepository {
 
-    companion object {
-        private const val USERS_COLLECTION = "users"
-        private const val LIKES_COLLECTION = "likes"
-        private const val MATCHES_COLLECTION = "matches"
-        private const val SKIPS_COLLECTION = "skips"
-    }
-    
-    /**
-     * Get the current user profile
-     */
-    override suspend fun getCurrentUser(): Result<UserDomain> {
-        val currentUserId = auth.currentUser?.uid ?: return Result.error("User not authenticated")
-        
-        return try {
-            val userDoc = firestore.collection(USERS_COLLECTION)
-                .document(currentUserId)
-                .get()
-                .await()
-            
-            if (userDoc.exists()) {
-                val user = userDoc.toObject(User::class.java)
-                if (user != null) {
-                    Result.success(UserDomain.fromDataModel(user))
-                } else {
-                    Result.error("Failed to parse user data")
-                }
-            } else {
-                Result.error("User not found")
-            }
-        } catch (e: Exception) {
-            Result.error("Error getting user: ${e.message}", e)
-        }
-    }
+    private val usersCollection = firestore.collection("users")
+    private val blockedUsersCollection = firestore.collection("blockedUsers")
+    private val reportedUsersCollection = firestore.collection("reportedUsers")
     
     /**
      * Get a user by ID
      */
-    override suspend fun getUserById(userId: String): Result<UserDomain> {
-        return try {
-            val userDoc = firestore.collection(USERS_COLLECTION)
-                .document(userId)
-                .get()
-                .await()
-            
-            if (userDoc.exists()) {
-                val user = userDoc.toObject(User::class.java)
-                if (user != null) {
-                    Result.success(UserDomain.fromDataModel(user))
-                } else {
-                    Result.error("Failed to parse user data")
-                }
-            } else {
-                Result.error("User not found")
-            }
-        } catch (e: Exception) {
-            Result.error("Error getting user: ${e.message}", e)
-        }
-    }
-    
-    /**
-     * Observe the current user profile
-     */
-    override fun observeCurrentUser(): Flow<Result<UserDomain>> = callbackFlow {
-        val currentUserId = auth.currentUser?.uid
-        if (currentUserId == null) {
-            trySend(Result.error("User not authenticated"))
-            close()
-            return@callbackFlow
-        }
+    override fun getUserById(userId: String): Flow<Result<User>> = callbackFlow {
+        trySend(Result.Loading)
         
-        val registration = firestore.collection(USERS_COLLECTION)
-            .document(currentUserId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    trySend(Result.error("Error observing user: ${error.message}", error))
-                    return@addSnapshotListener
-                }
-                
-                if (snapshot != null && snapshot.exists()) {
-                    val user = snapshot.toObject(User::class.java)
-                    if (user != null) {
-                        trySend(Result.success(UserDomain.fromDataModel(user)))
-                    } else {
-                        trySend(Result.error("Failed to parse user data"))
+        try {
+            // Try to get from local DB first
+            val cachedUser = userDao.getUserById(userId)
+            if (cachedUser != null) {
+                trySend(Result.Success(cachedUser))
+            }
+            
+            // Set up listener for real-time updates
+            val listener = usersCollection.document(userId)
+                .addSnapshotListener { snapshot, exception ->
+                    if (exception != null) {
+                        trySend(Result.Error("Failed to listen for user: ${exception.message}"))
+                        return@addSnapshotListener
                     }
+                    
+                    if (snapshot != null && snapshot.exists()) {
+                        val user = snapshot.toObject(User::class.java)
+                        if (user != null) {
+                            // Cache in local DB
+                            userDao.insertUser(user)
+                            trySend(Result.Success(user))
+                        } else {
+                            trySend(Result.Error("Failed to parse user data"))
+                        }
+                    } else {
+                        trySend(Result.Error("User not found"))
+                    }
+                }
+            
+            awaitClose { listener.remove() }
+        } catch (e: Exception) {
+            Timber.e(e, "Error getting user")
+            trySend(Result.Error("Failed to get user: ${e.message}"))
+            close()
+        }
+    }.catch { e ->
+        Timber.e(e, "Exception in getUserById flow")
+        emit(Result.Error("Exception: ${e.message}"))
+    }
+    
+    /**
+     * Get users by IDs
+     */
+    override fun getUsersByIds(userIds: List<String>): Flow<Result<List<User>>> = flow {
+        emit(Result.Loading)
+        
+        try {
+            if (userIds.isEmpty()) {
+                emit(Result.Success(emptyList()))
+                return@flow
+            }
+            
+            // Try to get from local DB first
+            val cachedUsers = userDao.getUsersByIds(userIds)
+            if (cachedUsers.isNotEmpty()) {
+                emit(Result.Success(cachedUsers))
+            }
+            
+            // Get from Firestore
+            val users = mutableListOf<User>()
+            
+            // Process in batches of 10 to avoid Firestore limitations
+            val batches = userIds.chunked(10)
+            
+            for (batch in batches) {
+                val query = usersCollection.whereIn("id", batch).get().await()
+                
+                val batchUsers = query.documents.mapNotNull { doc ->
+                    doc.toObject(User::class.java)
+                }
+                
+                // Cache in local DB
+                userDao.insertUsers(batchUsers)
+                
+                users.addAll(batchUsers)
+            }
+            
+            emit(Result.Success(users))
+        } catch (e: Exception) {
+            Timber.e(e, "Error getting users by IDs")
+            emit(Result.Error("Failed to get users: ${e.message}"))
+        }
+    }.catch { e ->
+        Timber.e(e, "Exception in getUsersByIds flow")
+        emit(Result.Error("Exception: ${e.message}"))
+    }
+    
+    /**
+     * Search users by name or other criteria
+     */
+    override fun searchUsers(query: String): Flow<Result<List<User>>> = flow {
+        emit(Result.Loading)
+        
+        try {
+            if (query.isBlank()) {
+                emit(Result.Success(emptyList()))
+                return@flow
+            }
+            
+            // Make query lowercase for case-insensitive search
+            val lowerQuery = query.lowercase()
+            
+            // Firestore doesn't support full text search, so we'll use prefix query
+            val nameQuery = usersCollection
+                .orderBy("name")
+                .startAt(lowerQuery)
+                .endAt(lowerQuery + "\uf8ff")
+                .limit(20)
+                .get()
+                .await()
+            
+            val users = nameQuery.documents.mapNotNull { doc ->
+                doc.toObject(User::class.java)
+            }
+            
+            // Cache in local DB
+            userDao.insertUsers(users)
+            
+            emit(Result.Success(users))
+        } catch (e: Exception) {
+            Timber.e(e, "Error searching users")
+            emit(Result.Error("Failed to search users: ${e.message}"))
+        }
+    }.catch { e ->
+        Timber.e(e, "Exception in searchUsers flow")
+        emit(Result.Error("Exception: ${e.message}"))
+    }
+    
+    /**
+     * Get users near the specified location
+     */
+    override fun getNearbyUsers(latitude: Double, longitude: Double, maxDistance: Int): Flow<Result<List<User>>> = flow {
+        emit(Result.Loading)
+        
+        try {
+            // Firestore doesn't support geospatial queries directly
+            // So we'll get all users and filter by distance in the app
+            val allUsersQuery = usersCollection
+                .whereNotEqualTo("latitude", null)
+                .whereNotEqualTo("longitude", null)
+                .limit(100) // Limit to avoid getting too many users
+                .get()
+                .await()
+            
+            val allUsers = allUsersQuery.documents.mapNotNull { doc ->
+                doc.toObject(User::class.java)
+            }
+            
+            // Filter by distance
+            val nearbyUsers = allUsers.filter { user ->
+                if (user.latitude != null && user.longitude != null) {
+                    calculateDistance(
+                        latitude,
+                        longitude,
+                        user.latitude,
+                        user.longitude
+                    ) <= maxDistance
                 } else {
-                    trySend(Result.error("User not found"))
+                    false
                 }
             }
-        
-        awaitClose { registration.remove() }
+            
+            // Sort by distance
+            val sortedUsers = nearbyUsers.sortedBy { user ->
+                calculateDistance(
+                    latitude,
+                    longitude,
+                    user.latitude ?: 0.0,
+                    user.longitude ?: 0.0
+                )
+            }
+            
+            // Cache in local DB
+            userDao.insertUsers(sortedUsers)
+            
+            emit(Result.Success(sortedUsers))
+        } catch (e: Exception) {
+            Timber.e(e, "Error getting nearby users")
+            emit(Result.Error("Failed to get nearby users: ${e.message}"))
+        }
+    }.catch { e ->
+        Timber.e(e, "Exception in getNearbyUsers flow")
+        emit(Result.Error("Exception: ${e.message}"))
     }
     
     /**
-     * Get profiles for discovery
+     * Get users filtered by criteria
      */
-    override suspend fun getDiscoveryProfiles(): List<UserDomain> {
-        val currentUserId = auth.currentUser?.uid ?: return emptyList()
+    override fun getFilteredUsers(
+        minAge: Int?,
+        maxAge: Int?,
+        gender: String?,
+        interests: List<String>?,
+        location: String?,
+        maxDistance: Int?
+    ): Flow<Result<List<User>>> = flow {
+        emit(Result.Loading)
         
         try {
-            // Get current user for preferences
-            val currentUserResult = getCurrentUser()
-            if (currentUserResult !is Result.Success) {
-                return emptyList()
+            // Start with a base query
+            var query = usersCollection.limit(50)
+            
+            // Apply filters for age
+            if (minAge != null) {
+                query = query.whereGreaterThanOrEqualTo("age", minAge)
+            }
+            if (maxAge != null) {
+                query = query.whereLessThanOrEqualTo("age", maxAge)
             }
             
-            val currentUser = currentUserResult.data
-            
-            // Get user's likes, matches, and skips to exclude them
-            val likes = firestore.collection(LIKES_COLLECTION)
-                .whereEqualTo("fromUserId", currentUserId)
-                .get()
-                .await()
-                .toObjects(Like::class.java)
-                .map { it.toUserId }
-            
-            val matches = firestore.collection(MATCHES_COLLECTION)
-                .whereEqualTo("userId1", currentUserId)
-                .get()
-                .await()
-                .toObjects(Match::class.java)
-                .map { it.userId2 } +
-                    firestore.collection(MATCHES_COLLECTION)
-                        .whereEqualTo("userId2", currentUserId)
-                        .get()
-                        .await()
-                        .toObjects(Match::class.java)
-                        .map { it.userId1 }
-            
-            val skips = firestore.collection(SKIPS_COLLECTION)
-                .whereEqualTo("userId", currentUserId)
-                .get()
-                .await()
-                .toObjects(Skip::class.java)
-                .map { it.skippedUserId }
-            
-            // Combine all IDs to exclude
-            val excludedIds = likes + matches + skips + currentUser.blockedUserIds + listOf(currentUserId)
-            
-            // Query profiles based on user preferences
-            val query = firestore.collection(USERS_COLLECTION)
-                .whereEqualTo("isActive", true)
-                .whereEqualTo("hideProfile", false)
-                
-            // Apply filters based on gender preferences if any are specified
-            if (currentUser.preferredGenders.isNotEmpty()) {
-                val genderValues = currentUser.preferredGenders.map { it.toDataValue() }
-                query.whereIn("gender", genderValues)
+            // Apply filter for gender
+            if (gender != null) {
+                query = query.whereEqualTo("gender", gender)
             }
-                
-            // Apply age filter
-            val minAge = currentUser.preferredAgeRange.first
-            val maxAge = currentUser.preferredAgeRange.last
             
-            // Execute query
-            val profiles = query.get().await()
-                .toObjects(User::class.java)
-                .filter { user -> 
-                    // Apply additional filtering
-                    user.id !in excludedIds &&
-                    calculateAge(user.birthday?.toDate()) in minAge..maxAge
+            // Get filtered users
+            val filteredUsersQuery = query.get().await()
+            
+            var filteredUsers = filteredUsersQuery.documents.mapNotNull { doc ->
+                doc.toObject(User::class.java)
+            }
+            
+            // Filter by interests (need to do in app because Firestore doesn't support array contains any easily)
+            if (interests != null && interests.isNotEmpty()) {
+                filteredUsers = filteredUsers.filter { user ->
+                    user.interests?.any { interest ->
+                        interests.contains(interest)
+                    } ?: false
                 }
-                .map { UserDomain.fromDataModel(it) }
-            
-            return profiles
-        } catch (e: Exception) {
-            return emptyList()
-        }
-    }
-    
-    /**
-     * Calculate age from birthday
-     */
-    private fun calculateAge(birthDate: java.util.Date?): Int {
-        if (birthDate == null) return 0
-        
-        val today = java.util.Calendar.getInstance()
-        val birthCal = java.util.Calendar.getInstance().apply {
-            time = birthDate
-        }
-        
-        var age = today.get(java.util.Calendar.YEAR) - birthCal.get(java.util.Calendar.YEAR)
-        
-        if (today.get(java.util.Calendar.DAY_OF_YEAR) < birthCal.get(java.util.Calendar.DAY_OF_YEAR)) {
-            age--
-        }
-        
-        return age
-    }
-    
-    /**
-     * Like a profile
-     */
-    override suspend fun likeProfile(profileId: String, isSuperLike: Boolean): Result<Unit> {
-        val currentUserId = auth.currentUser?.uid ?: return Result.error("User not authenticated")
-        
-        return try {
-            val like = Like(
-                fromUserId = currentUserId,
-                toUserId = profileId,
-                createdAt = com.google.firebase.Timestamp.now(),
-                isSuperLike = isSuperLike
-            )
-            
-            firestore.collection(LIKES_COLLECTION)
-                .add(like)
-                .await()
-            
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.error("Error liking profile: ${e.message}", e)
-        }
-    }
-    
-    /**
-     * Skip a profile
-     */
-    override suspend fun skipProfile(profileId: String, reason: String?): Result<Unit> {
-        val currentUserId = auth.currentUser?.uid ?: return Result.error("User not authenticated")
-        
-        return try {
-            val skip = Skip(
-                userId = currentUserId,
-                skippedUserId = profileId,
-                timestamp = com.google.firebase.Timestamp.now(),
-                reason = reason
-            )
-            
-            firestore.collection(SKIPS_COLLECTION)
-                .add(skip)
-                .await()
-            
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.error("Error skipping profile: ${e.message}", e)
-        }
-    }
-    
-    /**
-     * Check if there is a match with a profile
-     */
-    override suspend fun checkForMatch(profileId: String): Boolean {
-        val currentUserId = auth.currentUser?.uid ?: return false
-        
-        try {
-            // Check if other user has liked current user
-            val otherLikes = firestore.collection(LIKES_COLLECTION)
-                .whereEqualTo("fromUserId", profileId)
-                .whereEqualTo("toUserId", currentUserId)
-                .get()
-                .await()
-            
-            if (otherLikes.isEmpty) {
-                return false
             }
             
-            // Create a match
-            val matchId = "$currentUserId-$profileId".split("-").sorted().joinToString("-")
-            val match = Match(
-                id = matchId,
-                userId1 = currentUserId,
-                userId2 = profileId,
-                matchedAt = com.google.firebase.Timestamp.now(),
-                lastInteractionAt = com.google.firebase.Timestamp.now()
-            )
+            // Filter by location
+            if (location != null) {
+                filteredUsers = filteredUsers.filter { user ->
+                    user.location?.contains(location, ignoreCase = true) ?: false
+                }
+            }
             
-            firestore.collection(MATCHES_COLLECTION)
-                .document(matchId)
-                .set(match)
-                .await()
+            // Cache in local DB
+            userDao.insertUsers(filteredUsers)
             
-            return true
+            emit(Result.Success(filteredUsers))
         } catch (e: Exception) {
-            return false
+            Timber.e(e, "Error getting filtered users")
+            emit(Result.Error("Failed to get filtered users: ${e.message}"))
         }
+    }.catch { e ->
+        Timber.e(e, "Exception in getFilteredUsers flow")
+        emit(Result.Error("Exception: ${e.message}"))
     }
     
     /**
      * Update user profile
      */
-    override suspend fun updateUserProfile(user: UserDomain): Result<UserDomain> {
-        val currentUserId = auth.currentUser?.uid ?: return Result.error("User not authenticated")
-        
+    override suspend fun updateUserProfile(user: User): Result<User> {
         return try {
-            val dataModel = user.toDataModel()
+            val updatedUser = user.copy(updatedAt = Date())
             
-            firestore.collection(USERS_COLLECTION)
-                .document(currentUserId)
-                .set(dataModel)
-                .await()
+            usersCollection.document(user.id).set(updatedUser).await()
             
-            Result.success(user)
+            // Update local cache
+            userDao.updateUser(updatedUser)
+            
+            Result.Success(updatedUser)
         } catch (e: Exception) {
-            Result.error("Error updating profile: ${e.message}", e)
+            Timber.e(e, "Error updating user profile")
+            Result.Error("Failed to update user profile: ${e.message}")
         }
     }
     
     /**
      * Update user location
      */
-    override suspend fun updateUserLocation(latitude: Double, longitude: Double): Result<Unit> {
-        val currentUserId = auth.currentUser?.uid ?: return Result.error("User not authenticated")
-        
+    override suspend fun updateUserLocation(
+        userId: String,
+        latitude: Double,
+        longitude: Double,
+        locationName: String?
+    ): Result<User> {
         return try {
-            firestore.collection(USERS_COLLECTION)
-                .document(currentUserId)
-                .update(
-                    "location", GeoPoint(latitude, longitude),
-                    "lastLocationUpdate", com.google.firebase.Timestamp.now()
+            val updates = hashMapOf<String, Any>(
+                "latitude" to latitude,
+                "longitude" to longitude,
+                "updatedAt" to Date()
+            )
+            
+            if (locationName != null) {
+                updates["location"] = locationName
+            }
+            
+            usersCollection.document(userId).update(updates).await()
+            
+            // Get updated user
+            val userDoc = usersCollection.document(userId).get().await()
+            val updatedUser = userDoc.toObject(User::class.java)
+            
+            if (updatedUser != null) {
+                // Update local cache
+                userDao.updateUser(updatedUser)
+                Result.Success(updatedUser)
+            } else {
+                Result.Error("Failed to get updated user")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error updating user location")
+            Result.Error("Failed to update user location: ${e.message}")
+        }
+    }
+    
+    /**
+     * Update user online status
+     */
+    override suspend fun updateUserOnlineStatus(userId: String, isOnline: Boolean): Result<Unit> {
+        return try {
+            val updates = hashMapOf<String, Any>(
+                "isOnline" to isOnline,
+                "lastActive" to Date()
+            )
+            
+            usersCollection.document(userId).update(updates).await()
+            
+            // Update local cache if available
+            val cachedUser = userDao.getUserById(userId)
+            if (cachedUser != null) {
+                val updatedUser = cachedUser.copy(
+                    isOnline = isOnline,
+                    lastActive = Date()
                 )
-                .await()
+                userDao.updateUser(updatedUser)
+            }
             
-            Result.success(Unit)
+            Result.Success(Unit)
         } catch (e: Exception) {
-            Result.error("Error updating location: ${e.message}", e)
+            Timber.e(e, "Error updating user online status")
+            Result.Error("Failed to update user online status: ${e.message}")
         }
     }
     
     /**
-     * Get matched users
+     * Update user preferences
      */
-    override suspend fun getMatches(): List<UserDomain> {
-        val currentUserId = auth.currentUser?.uid ?: return emptyList()
-        
-        try {
-            // Get matches where current user is user1
-            val matches1 = firestore.collection(MATCHES_COLLECTION)
-                .whereEqualTo("userId1", currentUserId)
-                .whereEqualTo("status", Match.STATUS_ACTIVE)
-                .get()
-                .await()
-                .toObjects(Match::class.java)
-                .map { it.userId2 }
+    override suspend fun updateUserPreferences(
+        userId: String,
+        minAgePreference: Int?,
+        maxAgePreference: Int?,
+        genderPreference: List<String>?,
+        maxDistance: Int?
+    ): Result<User> {
+        return try {
+            val updates = hashMapOf<String, Any?>("updatedAt" to Date())
             
-            // Get matches where current user is user2
-            val matches2 = firestore.collection(MATCHES_COLLECTION)
-                .whereEqualTo("userId2", currentUserId)
-                .whereEqualTo("status", Match.STATUS_ACTIVE)
-                .get()
-                .await()
-                .toObjects(Match::class.java)
-                .map { it.userId1 }
-            
-            // Combine all matched user IDs
-            val matchedUserIds = matches1 + matches2
-            
-            // Get user profiles for matched users
-            val matchedUsers = matchedUserIds.mapNotNull { userId ->
-                val userResult = getUserById(userId)
-                userResult.getOrNull()
+            if (minAgePreference != null) {
+                updates["minAgePreference"] = minAgePreference
             }
             
-            return matchedUsers
+            if (maxAgePreference != null) {
+                updates["maxAgePreference"] = maxAgePreference
+            }
+            
+            if (genderPreference != null) {
+                updates["lookingFor"] = genderPreference
+            }
+            
+            if (maxDistance != null) {
+                updates["maxDistance"] = maxDistance
+            }
+            
+            usersCollection.document(userId).update(updates).await()
+            
+            // Get updated user
+            val userDoc = usersCollection.document(userId).get().await()
+            val updatedUser = userDoc.toObject(User::class.java)
+            
+            if (updatedUser != null) {
+                // Update local cache
+                userDao.updateUser(updatedUser)
+                Result.Success(updatedUser)
+            } else {
+                Result.Error("Failed to get updated user")
+            }
         } catch (e: Exception) {
-            return emptyList()
-        }
-    }
-    
-    /**
-     * Observe matched users
-     */
-    override fun observeMatches(): Flow<List<UserDomain>> = callbackFlow {
-        val currentUserId = auth.currentUser?.uid
-        if (currentUserId == null) {
-            trySend(emptyList())
-            close()
-            return@callbackFlow
-        }
-        
-        // Observe matches where current user is user1
-        val registration1 = firestore.collection(MATCHES_COLLECTION)
-            .whereEqualTo("userId1", currentUserId)
-            .whereEqualTo("status", Match.STATUS_ACTIVE)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) {
-                    return@addSnapshotListener
-                }
-                
-                // Process updates in a full refresh for simplicity
-                refreshMatches(currentUserId)
-            }
-        
-        // Observe matches where current user is user2
-        val registration2 = firestore.collection(MATCHES_COLLECTION)
-            .whereEqualTo("userId2", currentUserId)
-            .whereEqualTo("status", Match.STATUS_ACTIVE)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) {
-                    return@addSnapshotListener
-                }
-                
-                // Process updates in a full refresh for simplicity
-                refreshMatches(currentUserId)
-            }
-        
-        suspend fun refreshMatches(userId: String) {
-            val matches = getMatches()
-            trySend(matches)
-        }
-        
-        // Initial load
-        refreshMatches(currentUserId)
-        
-        awaitClose { 
-            registration1.remove()
-            registration2.remove()
+            Timber.e(e, "Error updating user preferences")
+            Result.Error("Failed to update user preferences: ${e.message}")
         }
     }
     
     /**
      * Block a user
      */
-    override suspend fun blockUser(userId: String): Result<Unit> {
-        val currentUserId = auth.currentUser?.uid ?: return Result.error("User not authenticated")
-        
+    override suspend fun blockUser(userId: String, blockedUserId: String): Result<Unit> {
         return try {
-            // Update current user's blocked list
-            firestore.collection(USERS_COLLECTION)
-                .document(currentUserId)
-                .update("blockedUsers", com.google.firebase.firestore.FieldValue.arrayUnion(userId))
-                .await()
+            val blockData = hashMapOf(
+                "userId" to userId,
+                "blockedUserId" to blockedUserId,
+                "timestamp" to Date()
+            )
             
-            // Update match status if exists
-            val matchId = "$currentUserId-$userId".split("-").sorted().joinToString("-")
-            val matchDoc = firestore.collection(MATCHES_COLLECTION)
-                .document(matchId)
-                .get()
-                .await()
+            val blockId = "$userId-$blockedUserId"
+            blockedUsersCollection.document(blockId).set(blockData).await()
             
-            if (matchDoc.exists()) {
-                firestore.collection(MATCHES_COLLECTION)
-                    .document(matchId)
-                    .update("status", Match.STATUS_BLOCKED)
-                    .await()
-            }
-            
-            Result.success(Unit)
+            Result.Success(Unit)
         } catch (e: Exception) {
-            Result.error("Error blocking user: ${e.message}", e)
-        }
-    }
-    
-    /**
-     * Unblock a user
-     */
-    override suspend fun unblockUser(userId: String): Result<Unit> {
-        val currentUserId = auth.currentUser?.uid ?: return Result.error("User not authenticated")
-        
-        return try {
-            // Update current user's blocked list
-            firestore.collection(USERS_COLLECTION)
-                .document(currentUserId)
-                .update("blockedUsers", com.google.firebase.firestore.FieldValue.arrayRemove(userId))
-                .await()
-            
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.error("Error unblocking user: ${e.message}", e)
+            Timber.e(e, "Error blocking user")
+            Result.Error("Failed to block user: ${e.message}")
         }
     }
     
     /**
      * Report a user
      */
-    override suspend fun reportUser(userId: String, reason: String, details: String?): Result<Unit> {
-        val currentUserId = auth.currentUser?.uid ?: return Result.error("User not authenticated")
-        
+    override suspend fun reportUser(
+        userId: String,
+        reportedUserId: String,
+        reason: String
+    ): Result<Unit> {
         return try {
-            val report = hashMapOf(
-                "reporterId" to currentUserId,
-                "reportedUserId" to userId,
+            val reportData = hashMapOf(
+                "userId" to userId,
+                "reportedUserId" to reportedUserId,
                 "reason" to reason,
-                "details" to (details ?: ""),
-                "timestamp" to com.google.firebase.Timestamp.now(),
-                "resolved" to false
+                "timestamp" to Date(),
+                "status" to "pending"
             )
             
-            firestore.collection("reports")
-                .add(report)
-                .await()
+            val reportId = "$userId-$reportedUserId-${Date().time}"
+            reportedUsersCollection.document(reportId).set(reportData).await()
             
-            Result.success(Unit)
+            Result.Success(Unit)
         } catch (e: Exception) {
-            Result.error("Error reporting user: ${e.message}", e)
+            Timber.e(e, "Error reporting user")
+            Result.Error("Failed to report user: ${e.message}")
         }
+    }
+    
+    /**
+     * Calculate distance between two coordinates in kilometers using Haversine formula
+     */
+    private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Int {
+        val earthRadius = 6371 // Earth's radius in kilometers
+        
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        
+        return (earthRadius * c).toInt()
     }
 }

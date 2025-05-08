@@ -11,7 +11,11 @@ import com.google.firebase.storage.ktx.storage
 import com.kilagee.onelove.data.local.OneLoveDatabase
 import com.kilagee.onelove.data.local.UserDao
 import com.kilagee.onelove.data.repository.AuthRepositoryImpl
+import com.kilagee.onelove.data.repository.DiscoverRepositoryImpl
+import com.kilagee.onelove.data.repository.UserRepositoryImpl
 import com.kilagee.onelove.domain.repository.AuthRepository
+import com.kilagee.onelove.domain.repository.DiscoverRepository
+import com.kilagee.onelove.domain.repository.UserRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -82,5 +86,30 @@ object AppModule {
         userDao: UserDao
     ): AuthRepository {
         return AuthRepositoryImpl(auth, firestore, userDao)
+    }
+    
+    /**
+     * Provide User repository
+     */
+    @Provides
+    @Singleton
+    fun provideUserRepository(
+        firestore: FirebaseFirestore,
+        userDao: UserDao
+    ): UserRepository {
+        return UserRepositoryImpl(firestore, userDao)
+    }
+    
+    /**
+     * Provide Discover repository
+     */
+    @Provides
+    @Singleton
+    fun provideDiscoverRepository(
+        firestore: FirebaseFirestore,
+        authRepository: AuthRepository,
+        userDao: UserDao
+    ): DiscoverRepository {
+        return DiscoverRepositoryImpl(firestore, authRepository, userDao)
     }
 }
