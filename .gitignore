@@ -92,4 +92,4 @@ firebase/
 # Replit specific
 .replit
 .breakpoints
-replit.nix
+replit.nix.gradle/
